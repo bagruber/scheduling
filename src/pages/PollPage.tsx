@@ -158,14 +158,23 @@ export default function PollPage({ id }: { id: string }) {
     if (keys.length > 0) commit(keys, erase);
   }
 
+  // Beide APIs gibt es nur im sicheren Kontext. Ueber http://<ip>:<port> fehlt
+  // navigator.clipboard ganz — ohne Guard wirft der Zugriff, und der Knopf
+  // taete stumm nichts. Dann lieber keinen Knopf zeigen: die URL steht daneben.
+  const canShare = typeof navigator.share === "function" || navigator.clipboard !== undefined;
+
   async function share() {
     if (navigator.share) {
       await navigator.share({ title: poll!.title, url: shareUrl }).catch(() => undefined);
       return;
     }
-    await navigator.clipboard.writeText(shareUrl).catch(() => undefined);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2500);
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Kopieren abgelehnt — die URL steht ohnehin daneben.
+    }
   }
 
   async function changePoll(patch: Record<string, unknown>) {
@@ -407,9 +416,11 @@ export default function PollPage({ id }: { id: string }) {
 
       {editing ? null : (
       <section className="share">
-        <button type="button" className="ghost" onClick={() => void share()}>
-          {copied ? "Link kopiert" : "Link teilen"}
-        </button>
+        {canShare ? (
+          <button type="button" className="ghost" onClick={() => void share()}>
+            {copied ? "Link kopiert" : "Link teilen"}
+          </button>
+        ) : null}
         <code>{shareUrl}</code>
       </section>
       )}
