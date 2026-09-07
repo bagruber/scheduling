@@ -192,6 +192,20 @@ button {
   padding: 0.75rem;
 }
 
+/* Wer ins Raster tippt, bevor er eingetragen ist, wird hierher geholt. */
+.primary.is-calling {
+  animation: callButton 700ms ease-out 2;
+}
+
+@keyframes callButton {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 45%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 14px color-mix(in oklab, var(--accent) 0%, transparent);
+  }
+}
+
 .primary:disabled {
   opacity: 0.45;
   cursor: default;
@@ -353,12 +367,43 @@ button {
 
 /* --- Raster -------------------------------------------------------------- */
 
+/* Der Rahmen umschliesst das Raster, nicht die Seitenbreite — daran haengt
+   auch, dass der Weiter-Hinweis rechts an der Rasterkante sitzt. */
+.grid-frame {
+  position: relative;
+  max-width: calc(2.75rem + var(--cols) * 8rem + 2px);
+}
+
+/* Dass rechts noch Tage stehen, sieht man dem abgeschnittenen Rand sonst
+   nicht an. Verschwindet, sobald nichts mehr kommt. */
+.grid-more {
+  position: absolute;
+  inset: 1px 1px 1px auto;
+  width: 2.5rem;
+  display: grid;
+  place-items: center;
+  padding-left: 1rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: linear-gradient(to right, transparent, var(--surface) 70%);
+  color: var(--muted);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms;
+}
+
+.grid-more.is-on {
+  opacity: 1;
+}
+
+.grid-more svg {
+  width: 1rem;
+  height: 1rem;
+}
+
 .grid-scroll {
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
-  /* Der Rahmen soll das Raster umschliessen, nicht die Seitenbreite. */
-  max-width: calc(2.75rem + var(--cols) * 8rem + 2px);
   max-height: min(72vh, 42rem);
   overscroll-behavior: contain;
   border: 1px solid var(--line);

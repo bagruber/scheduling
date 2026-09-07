@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import type { Choice, Poll, Step } from "../../shared/types.ts";
 import type { Tally } from "../lib/grid.ts";
@@ -39,6 +39,24 @@ export default function Grid({
   onDayToggle,
 }: Props) {
   const [focus, setFocus] = useState<[number, number]>([0, 0]);
+  const [more, setMore] = useState(false);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // Ob rechts noch Tage stehen, weiss nur der Scroll-Container selbst. Ohne
+  // dieses Signal endet das Raster fuer den Blick einfach am Rand.
+  useEffect(() => {
+    const box = scroller.current;
+    if (!box) return;
+    const update = () => setMore(box.scrollWidth - box.clientWidth - box.scrollLeft > 2);
+    update();
+    box.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(box);
+    return () => {
+      box.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [poll.days.length, times.length]);
   const { ref, preview } = usePaint({
     days: poll.days,
     times,
@@ -91,79 +109,86 @@ export default function Grid({
   );
 
   return (
-    <div className="grid-scroll" style={style}>
-      <div className="grid" role="grid" ref={ref} onKeyDown={onKeyDown}>
-        <div className="grid-corner" />
-        {poll.days.map((day) =>
-          editing ? (
-            <button
-              key={day}
-              type="button"
-              className={`grid-day is-button${isWeekend(day) ? " is-weekend" : ""}`}
-              aria-label={`Ganzen Tag ${dayWeekday(day)} ${dayShort(day)} aus- oder abwählen`}
-              onClick={() => onDayToggle(day)}
-            >
-              {dayLabel(day)}
-            </button>
-          ) : (
-            <div key={day} className={`grid-day${isWeekend(day) ? " is-weekend" : ""}`} role="columnheader">
-              {dayLabel(day)}
-            </div>
-          ),
-        )}
+    <div className="grid-frame" style={style}>
+      <div className="grid-scroll" ref={scroller}>
+        <div className="grid" role="grid" ref={ref} onKeyDown={onKeyDown}>
+          <div className="grid-corner" />
+          {poll.days.map((day) =>
+            editing ? (
+              <button
+                key={day}
+                type="button"
+                className={`grid-day is-button${isWeekend(day) ? " is-weekend" : ""}`}
+                aria-label={`Ganzen Tag ${dayWeekday(day)} ${dayShort(day)} aus- oder abwählen`}
+                onClick={() => onDayToggle(day)}
+              >
+                {dayLabel(day)}
+              </button>
+            ) : (
+              <div key={day} className={`grid-day${isWeekend(day) ? " is-weekend" : ""}`} role="columnheader">
+                {dayLabel(day)}
+              </div>
+            ),
+          )}
 
-        {times.map((time, timeIndex) => (
-          <Fragment key={time}>
-            <div className="grid-time" role="rowheader">
-              {poll.step >= 30 || time.endsWith(":00") ? time : ""}
-            </div>
-            {poll.days.map((day, dayIndex) => {
-              const key = cellKey(day, time);
-              const painted = preview?.keys.has(key) ?? false;
-              const own = painted ? (preview!.erase ? undefined : brush) : mine.get(key);
-              const tally = counts.get(key);
-              const yes = tally?.yes.length ?? 0;
-              const maybe = tally?.maybe.length ?? 0;
-              const fill = showCounts && total > 0 ? Math.round(((yes + maybe * 0.5) / total) * 100) : 0;
-              const focused = focus[0] === dayIndex && focus[1] === timeIndex;
+          {times.map((time, timeIndex) => (
+            <Fragment key={time}>
+              <div className="grid-time" role="rowheader">
+                {poll.step >= 30 || time.endsWith(":00") ? time : ""}
+              </div>
+              {poll.days.map((day, dayIndex) => {
+                const key = cellKey(day, time);
+                const painted = preview?.keys.has(key) ?? false;
+                const own = painted ? (preview!.erase ? undefined : brush) : mine.get(key);
+                const tally = counts.get(key);
+                const yes = tally?.yes.length ?? 0;
+                const maybe = tally?.maybe.length ?? 0;
+                const fill = showCounts && total > 0 ? Math.round(((yes + maybe * 0.5) / total) * 100) : 0;
+                const focused = focus[0] === dayIndex && focus[1] === timeIndex;
 
-              return (
-                <div
-                  key={key}
-                  role="gridcell"
-                  data-key={key}
-                  tabIndex={focused ? 0 : -1}
-                  aria-selected={own !== undefined}
-                  aria-label={`${dayWeekday(day)} ${dayShort(day)} ${time}, ${yes} von ${total}`}
-                  className={[
-                    "cell",
-                    own === "yes" ? "is-yes" : "",
-                    own === "maybe" ? "is-maybe" : "",
-                    painted ? "is-painting" : "",
-                    preview?.anchor === key ? "is-anchor" : "",
-                    time.endsWith(":00") ? "is-hour" : "",
-                    fill > 55 ? "on-dark" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  style={{ "--fill": fill } as CSSProperties}
-                  onFocus={() => setFocus([dayIndex, timeIndex])}
-                  onClick={editing ? undefined : () => onInspect(key)}
-                >
-                  {!editing && showCounts && total > 1 && yes > 0 ? <span className="cell-count">{yes}</span> : null}
-                </div>
-              );
-            })}
-          </Fragment>
-        ))}
+                return (
+                  <div
+                    key={key}
+                    role="gridcell"
+                    data-key={key}
+                    tabIndex={focused ? 0 : -1}
+                    aria-selected={own !== undefined}
+                    aria-label={`${dayWeekday(day)} ${dayShort(day)} ${time}, ${yes} von ${total}`}
+                    className={[
+                      "cell",
+                      own === "yes" ? "is-yes" : "",
+                      own === "maybe" ? "is-maybe" : "",
+                      painted ? "is-painting" : "",
+                      preview?.anchor === key ? "is-anchor" : "",
+                      time.endsWith(":00") ? "is-hour" : "",
+                      fill > 55 ? "on-dark" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    style={{ "--fill": fill } as CSSProperties}
+                    onFocus={() => setFocus([dayIndex, timeIndex])}
+                    onClick={editing ? undefined : () => onInspect(key)}
+                  >
+                    {!editing && showCounts && total > 1 && yes > 0 ? <span className="cell-count">{yes}</span> : null}
+                  </div>
+                );
+              })}
+            </Fragment>
+          ))}
 
-        {/* Die Zeilenbeschriftung nennt den Beginn eines Feldes, das Ende des
-            letzten Feldes bliebe damit ungenannt. Diese Nullhoehen-Zeile holt
-            es nach: bei 09:00–20:00 steht unten die 20:00. */}
-        <div className="grid-time grid-end">{poll.toTime}</div>
-        {poll.days.map((day) => (
-          <div key={`end-${day}`} className="grid-end-cell" />
-        ))}
+          {/* Die Zeilenbeschriftung nennt den Beginn eines Feldes, das Ende des
+              letzten Feldes bliebe damit ungenannt. Diese Nullhoehen-Zeile holt
+              es nach: bei 09:00–20:00 steht unten die 20:00. */}
+          <div className="grid-time grid-end">{poll.toTime}</div>
+          {poll.days.map((day) => (
+            <div key={`end-${day}`} className="grid-end-cell" />
+          ))}
+        </div>
+      </div>
+      <div className={more ? "grid-more is-on" : "grid-more"} aria-hidden="true">
+        <svg viewBox="0 0 16 16">
+          <path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </div>
     </div>
   );

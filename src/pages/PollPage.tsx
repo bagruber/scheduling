@@ -28,10 +28,13 @@ export default function PollPage({ id }: { id: string }) {
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [saveError, setSaveError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [calling, setCalling] = useState(false);
 
   const saveTimer = useRef<number | undefined>(undefined);
   const undoTimer = useRef<number | undefined>(undefined);
   const help = useRef<HTMLDialogElement>(null);
+  const signin = useRef<HTMLElement>(null);
+  const nameField = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     readPoll(id)
@@ -174,6 +177,18 @@ export default function PollPage({ id }: { id: string }) {
     await refresh();
   }
 
+  /** Vor dem Eintragen ist ein Tipper ins Raster ein Versuch mitzumachen. */
+  function activateCell(key: string) {
+    if (!closed && !showCounts) {
+      signin.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      nameField.current?.focus({ preventScroll: true });
+      setCalling(true);
+      window.setTimeout(() => setCalling(false), 2600);
+      return;
+    }
+    setInspect(key);
+  }
+
   const inspected = inspect ? counts.get(inspect) : undefined;
   const absent = inspected
     ? displayed.map((p) => p.name).filter((n) => !inspected.yes.includes(n) && !inspected.maybe.includes(n))
@@ -212,19 +227,16 @@ export default function PollPage({ id }: { id: string }) {
           <header className="poll-head">
             <h1>{poll.title}</h1>
             {poll.note ? <p className="note">{poll.note}</p> : null}
-            <p className="meta">
-              {poll.days.length} {poll.days.length === 1 ? "Tag" : "Tage"} · {poll.fromTime}–{poll.toTime} ·{" "}
-              {STEP_LABEL[poll.step]} · {displayed.length} {displayed.length === 1 ? "Antwort" : "Antworten"}
-            </p>
             {closed ? <p className="banner">Geschlossen — Einträge lassen sich nicht mehr ändern.</p> : null}
           </header>
 
           {closed ? null : (
-            <section className="signin">
+            <section className="signin" ref={signin}>
               <div className="row two">
                 <label className="field">
                   <span>Dein Name</span>
                   <input
+                    ref={nameField}
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     list="known-names"
@@ -255,7 +267,18 @@ export default function PollPage({ id }: { id: string }) {
                   kein Passwort, das du bereits verwendest.
                 </p>
               )}
-              <button type="button" className="primary" disabled={trimmedName.length === 0} onClick={beginEditing}>
+              {calling ? (
+                <p className="notice">
+                  Trag zuerst deinen Namen ein und tipp auf <strong>Verfügbarkeit eintragen</strong> — danach lässt
+                  sich das Raster ausfüllen.
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className={calling ? "primary is-calling" : "primary"}
+                disabled={trimmedName.length === 0}
+                onClick={beginEditing}
+              >
                 {existing ? "Eintrag ändern" : "Verfügbarkeit eintragen"}
               </button>
             </section>
@@ -263,23 +286,23 @@ export default function PollPage({ id }: { id: string }) {
         </>
       )}
 
-      <div className="grid-bar">
-        <p className="hint">
-          {editing
-            ? "Tippen wählt ein Feld, Halten und Ziehen einen Block."
-            : showCounts
-              ? "Ein Feld antippen zeigt, wer kann."
-              : ""}
-        </p>
-        <button
-          type="button"
-          className="icon"
-          aria-label="Hilfe zur Bedienung"
-          onClick={() => help.current?.showModal()}
-        >
-          ?
-        </button>
-      </div>
+      {editing || showCounts ? (
+        <div className="grid-bar">
+          <p className="hint">
+            {editing ? "Tippen wählt ein Feld, Halten und Ziehen einen Block." : "Ein Feld antippen zeigt, wer kann."}
+          </p>
+          {editing ? (
+            <button
+              type="button"
+              className="icon"
+              aria-label="Hilfe zur Bedienung"
+              onClick={() => help.current?.showModal()}
+            >
+              ?
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <Grid
         poll={poll}
@@ -291,7 +314,7 @@ export default function PollPage({ id }: { id: string }) {
         editing={editing}
         brush={brush}
         onCommit={commit}
-        onInspect={setInspect}
+        onInspect={activateCell}
         onDayToggle={toggleDay}
       />
 
