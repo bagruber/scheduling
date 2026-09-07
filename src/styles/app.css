@@ -519,6 +519,27 @@ button {
   box-shadow: inset 0 0 0 2px var(--ink);
 }
 
+/* Quittung fuer das lange Druecken. navigator.vibrate gibt es auf iOS nicht,
+   dort ist dieser Ring die einzige Rueckmeldung, dass die Auswahl begonnen hat. */
+.cell.is-anchor {
+  position: relative;
+  z-index: 1;
+  animation: cellGrab 380ms ease-out;
+}
+
+@keyframes cellGrab {
+  from {
+    box-shadow:
+      inset 0 0 0 2px var(--ink),
+      0 0 0 0 color-mix(in oklab, var(--ink) 40%, transparent);
+  }
+  to {
+    box-shadow:
+      inset 0 0 0 2px var(--ink),
+      0 0 0 12px color-mix(in oklab, var(--ink) 0%, transparent);
+  }
+}
+
 .cell-count {
   pointer-events: none;
 }
@@ -819,7 +840,25 @@ button {
   color: var(--warn);
 }
 
+.ico {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+}
+
+.lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.4375rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
 .undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
   position: fixed;
   right: 1rem;
   bottom: 0.875rem;

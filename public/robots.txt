@@ -1,0 +1,4 @@
+# Die Startseite darf gefunden werden, die Terminseiten nicht:
+# dort stehen die Namen der Beteiligten.
+User-agent: *
+Disallow: /e/

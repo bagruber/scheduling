@@ -140,6 +140,7 @@ export default function Grid({
                     own === "yes" ? "is-yes" : "",
                     own === "maybe" ? "is-maybe" : "",
                     painted ? "is-painting" : "",
+                    preview?.anchor === key ? "is-anchor" : "",
                     time.endsWith(":00") ? "is-hour" : "",
                     fill > 55 ? "on-dark" : "",
                   ]

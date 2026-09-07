@@ -6,6 +6,7 @@ import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as api from "./api.ts";
 import { HttpError } from "./api.ts";
+import { clientIp } from "./limit.ts";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const STATIC_ROOT = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
@@ -47,6 +48,7 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 
 async function route(req: IncomingMessage, path: string[], body: unknown) {
   const token = String(req.headers["x-admin-token"] ?? "");
+  const ip = clientIp(req.headers["x-forwarded-for"], req.socket.remoteAddress);
   const [, resource, id, sub, subId] = path; // path[0] === "api"
 
   if (resource !== "polls") throw new HttpError(404, "Unbekannter Endpunkt");
@@ -60,11 +62,11 @@ async function route(req: IncomingMessage, path: string[], body: unknown) {
     throw new HttpError(405, "Methode nicht erlaubt");
   }
   if (sub === "entry") {
-    if (subId === undefined && req.method === "PUT") return api.saveEntry(id, body);
+    if (subId === undefined && req.method === "PUT") return api.saveEntry(id, body, ip);
     if (subId !== undefined && req.method === "DELETE") {
       const numeric = Number(subId);
       if (!Number.isInteger(numeric)) throw new HttpError(400, "Ungueltige Eintrags-ID");
-      return api.deleteEntry(id, numeric, body, token);
+      return api.deleteEntry(id, numeric, body, token, ip);
     }
     throw new HttpError(405, "Methode nicht erlaubt");
   }
@@ -86,6 +88,11 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: 
     sendJson(res, 404, { error: "Kein Build vorhanden — pnpm build ausfuehren" });
     return;
   }
+
+  // Terminseiten gehoeren nicht in einen Suchindex — dort stehen Namen. Die
+  // Startseite darf gefunden werden, deshalb haengt der Header am Pfad und
+  // nicht global am Dokument.
+  if (pathname.startsWith("/e/")) res.setHeader("x-robots-tag", "noindex, nofollow");
 
   // Vite haengt einen Hash an jeden Dateinamen unter /assets, die duerfen ewig
   // im Cache bleiben. index.html darf es nie, sonst haengt der Client fest.
@@ -115,6 +122,7 @@ const server = createServer((req, res) => {
       sendJson(res, result.status, result.json);
     } catch (error) {
       if (error instanceof HttpError) {
+        if (typeof error.detail.retryAfter === "number") res.setHeader("retry-after", String(error.detail.retryAfter));
         sendJson(res, error.status, { error: error.message, ...error.detail });
         return;
       }

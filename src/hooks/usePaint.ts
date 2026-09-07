@@ -17,7 +17,7 @@ type Options = {
   onCommit: (keys: string[], erase: boolean) => void;
 };
 
-export type PaintPreview = { keys: Set<string>; erase: boolean };
+export type PaintPreview = { keys: Set<string>; erase: boolean; anchor: string };
 
 const splitKey = (key: string): [string, string] => {
   const at = key.indexOf("T");
@@ -69,7 +69,7 @@ export function usePaint(options: Options) {
 
     const show = (keys: Set<string>) => {
       selection = keys;
-      setPreview({ keys, erase });
+      setPreview({ keys, erase, anchor: startKey ?? "" });
     };
 
     const begin = () => {
@@ -78,7 +78,7 @@ export function usePaint(options: Options) {
       // Die erste Zelle bestimmt die Richtung: auf Leerem malt man, auf
       // Gesetztem radiert man. Damit entfaellt ein weiterer Schalter.
       erase = latest.current.isSet(startKey);
-      navigator.vibrate?.(10);
+      navigator.vibrate?.(12);
       if (pointerId !== null) grid.setPointerCapture(pointerId);
       show(new Set([startKey]));
     };

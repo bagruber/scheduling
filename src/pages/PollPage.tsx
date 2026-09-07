@@ -309,6 +309,23 @@ export default function PollPage({ id }: { id: string }) {
             setUndo(null);
           }}
         >
+          <svg className="ico" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M5.6 5.4H9.2a4 4 0 1 1 0 8H6.4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            />
+            <path
+              d="M7.8 2.7 5 5.4l2.8 2.7"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           Rückgängig
         </button>
       ) : null}
@@ -382,7 +399,30 @@ export default function PollPage({ id }: { id: string }) {
                   <li key={person.id}>
                     <span className="people-name">
                       {person.name}
-                      {person.locked ? <em title="mit Kennwort geschützt"> · geschützt</em> : null}
+                      {person.locked ? (
+                        <span className="lock" title="mit Kennwort geschützt">
+                          <svg className="ico" viewBox="0 0 16 16" aria-hidden="true">
+                            <rect
+                              x="3.6"
+                              y="7"
+                              width="8.8"
+                              height="6.4"
+                              rx="1.6"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                            />
+                            <path
+                              d="M5.9 7V5.3a2.1 2.1 0 0 1 4.2 0V7"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          geschützt
+                        </span>
+                      ) : null}
                     </span>
                     <span className="muted">{since(person.updatedAt)}</span>
                     {adminToken ? (

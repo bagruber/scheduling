@@ -1,6 +1,7 @@
 import type { NewPoll, Poll, Span, Step } from "../shared/types.ts";
 import { STEPS } from "../shared/types.ts";
 import * as db from "./db.ts";
+import { recordFailure, recordSuccess, retryAfter } from "./limit.ts";
 
 export class HttpError extends Error {
   status: number;
@@ -90,6 +91,18 @@ function parseSpans(value: unknown, poll: Poll): Span[] {
   });
 }
 
+function guardAttempts(ip: string, pollId: string, name: string): string {
+  const key = `${ip}|${pollId}|${name.toLowerCase()}`;
+  const wait = retryAfter(key);
+  if (wait > 0) {
+    const minutes = Math.ceil(wait / 60);
+    throw new HttpError(429, `Zu viele Fehlversuche. Bitte in ${minutes} Minuten erneut versuchen.`, {
+      retryAfter: wait,
+    });
+  }
+  return key;
+}
+
 function requirePoll(id: string): Poll {
   const poll = db.getPoll(id);
   if (!poll) throw new HttpError(404, "Termin nicht gefunden");
@@ -125,7 +138,7 @@ export function patchPoll(id: string, body: unknown, adminToken: string) {
   return { status: 200, json: { poll: requirePoll(id) } };
 }
 
-export async function saveEntry(id: string, body: unknown) {
+export async function saveEntry(id: string, body: unknown, ip: string) {
   const poll = requirePoll(id);
   if (poll.closedAt) throw new HttpError(409, "Der Termin ist geschlossen");
   if (typeof body !== "object" || body === null) throw bad("Kein Eintrag uebergeben");
@@ -139,10 +152,13 @@ export async function saveEntry(id: string, body: unknown) {
   const existing = db.findParticipant(id, name);
   let hash = existing?.passwordHash ?? null;
   if (existing?.passwordHash) {
+    const key = guardAttempts(ip, id, name);
     if (!password) throw new HttpError(401, "Dieser Eintrag ist mit einem Kennwort geschuetzt", { needsPassword: true });
     if (!(await db.checkPassword(password, existing.passwordHash))) {
+      recordFailure(key);
       throw new HttpError(401, "Kennwort stimmt nicht", { needsPassword: true });
     }
+    recordSuccess(key);
   } else if (password) {
     hash = await db.hashPassword(password);
   }
@@ -150,17 +166,20 @@ export async function saveEntry(id: string, body: unknown) {
   return { status: 200, json: { id: db.saveEntry(id, name, hash, spans) } };
 }
 
-export async function deleteEntry(id: string, participantId: number, body: unknown, adminToken: string) {
+export async function deleteEntry(id: string, participantId: number, body: unknown, adminToken: string, ip: string) {
   requirePoll(id);
   const entry = db.participantPoll(participantId);
   if (!entry || entry.pollId !== id) throw new HttpError(404, "Eintrag nicht gefunden");
 
   if (!db.isAdmin(id, adminToken) && entry.passwordHash) {
+    const key = guardAttempts(ip, id, String(participantId));
     const raw = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
     const password = typeof raw.password === "string" ? raw.password : "";
     if (!password || !(await db.checkPassword(password, entry.passwordHash))) {
+      recordFailure(key);
       throw new HttpError(401, "Kennwort stimmt nicht", { needsPassword: true });
     }
+    recordSuccess(key);
   }
 
   db.deleteParticipant(participantId);

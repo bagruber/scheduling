@@ -1,7 +1,7 @@
 # Offene Punkte
 
 *Fuer spaetere Sitzungen. Erledigte Punkte bitte streichen, nicht abhaken —
-die Datei soll kurz bleiben. Angelegt 07.09.2026.*
+die Datei soll kurz bleiben. Angelegt 07.09.2026, zuletzt 07.09.2026.*
 
 ## `pnpm lint` laeuft nirgends
 
@@ -28,15 +28,6 @@ pnpm-Store. Also entweder in `baseline.json` aufnehmen (wenn andere Repos das
 auch brauchen koennen) oder ~200 Zeilen QR-Encoder selbst schreiben. Bis dahin:
 Web Share bzw. Zwischenablage.
 
-## Kein Rate-Limit auf Kennwortversuche
-
-`PUT /api/polls/:id/entry` prueft Kennwoerter ohne Zaehler. scrypt laeuft async,
-blockiert den Event-Loop also nicht, aber Raten ist unbegrenzt moeglich.
-
-Fuer eine Vereinsrunde mit geteiltem Link ist das vertretbar — das Kennwort
-schuetzt einen Rasterentrag, keine Identitaet. Vor breiterem Einsatz: ein
-Zaehler pro IP im Speicher, ~20 Zeilen.
-
 ## Was bewusst fehlt
 
 Nicht vergessen, sondern entschieden:
@@ -52,3 +43,14 @@ Nicht vergessen, sondern entschieden:
 - **Live-Aktualisierung per SSE**, damit man beim gemeinsamen Ausfuellen sieht,
   wie sich das Raster fuellt.
 - **Ergebnis festzurren + .ics-Download**, **CSV-Export**.
+
+## Erledigt, aber gut zu wissen
+
+Kennwortversuche werden seit 07.09.2026 gebremst (`server/limit.ts`): zehn
+Fehlversuche je IP und Zieleintrag, dann 15 Minuten Sperre. Der Zaehler haengt
+im Arbeitsspeicher und ist nach einem Redeploy leer — fuer diesen Zweck
+ausreichend, aber es ist kein Schutz gegen viele Rechner gleichzeitig.
+
+Terminseiten liefern `X-Robots-Tag: noindex, nofollow`, die Startseite nicht;
+`public/robots.txt` sperrt zusaetzlich `/e/`. Das haengt am Pfad im Server, ist
+also unabhaengig davon, was in Coolify eingestellt ist.
