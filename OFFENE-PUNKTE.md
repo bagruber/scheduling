@@ -54,3 +54,16 @@ ausreichend, aber es ist kein Schutz gegen viele Rechner gleichzeitig.
 Terminseiten liefern `X-Robots-Tag: noindex, nofollow`, die Startseite nicht;
 `public/robots.txt` sperrt zusaetzlich `/e/`. Das haengt am Pfad im Server, ist
 also unabhaengig davon, was in Coolify eingestellt ist.
+
+HSTS setzt der Server selbst, aber nur wenn `x-forwarded-proto: https` ankommt —
+im Dev ueber http wuerde der Header den Browser sonst dauerhaft aussperren.
+Deshalb ist am Proxy dafuer nichts einzustellen.
+
+## Auto-Deploy haengt noch
+
+Coolify baut nur auf Knopfdruck: es gibt keinen Webhook, weder am Repo noch
+ueber die GitHub App (am 07.09.2026 fuer `scheduling` und `fresh-redesign`
+geprueft — bei fresh-redesign laeuft er ueber die App, hier fehlt er).
+Vermutlich wurde die Application als *Public Repository* angelegt; diese
+Quelle hat keine Rueckverbindung zu GitHub. Weg raus: Webhook aus dem
+Webhooks-Reiter der Application von Hand in die Repo-Einstellungen eintragen.

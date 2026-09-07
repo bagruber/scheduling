@@ -111,6 +111,15 @@ const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     const segments = url.pathname.split("/").filter(Boolean);
 
+    // Nach einem TLS-Aufruf soll der Browser gar nicht erst wieder ueber http
+    // anfragen — sonst laesst sich der erste Sprung abfangen, bevor die
+    // Weiterleitung greift. Die Seite hat Kennwortfelder, das lohnt sich.
+    // Nur wenn der Proxy https gemeldet hat: im Klartext waere der Header
+    // wirkungslos und im Dev ueber http sperrend.
+    if (req.headers["x-forwarded-proto"] === "https") {
+      res.setHeader("strict-transport-security", "max-age=31536000");
+    }
+
     if (segments[0] !== "api") {
       await serveStatic(req, res, url.pathname);
       return;
