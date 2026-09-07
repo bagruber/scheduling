@@ -5,6 +5,7 @@ import { ApiError, deleteEntry, patchPoll, readPoll, saveEntry } from "../lib/ap
 import { bestRanges, cellKey, cellsToSpans, slotsOf, spanCells, tally } from "../lib/grid.ts";
 import { dayLong, joinNames, since } from "../lib/format.ts";
 import Grid from "../components/Grid.tsx";
+import { DayFigure, DragFigure, TapFigure } from "../components/HelpFigures.tsx";
 
 const STEP_LABEL: Record<Step, string> = { 15: "15 Min.", 30: "30 Min.", 60: "1 Std.", 120: "2 Std." };
 
@@ -443,20 +444,28 @@ export default function PollPage({ id }: { id: string }) {
         </section>
       ) : null}
 
-      {/* Platzhalter — die Bewegtbild-Anleitung kommt im zweiten Schritt. */}
       <dialog className="help" ref={help}>
         <h2>Zeiten markieren</h2>
-        <ul>
+        <ol className="tut-list">
           <li>
-            <strong>Tippen</strong> schaltet ein einzelnes Feld an oder aus.
+            <TapFigure />
+            <p>
+              <strong>Tippen</strong> schaltet ein einzelnes Feld an oder aus.
+            </p>
           </li>
           <li>
-            <strong>Halten und ziehen</strong> wählt einen ganzen Block. Wischen scrollt wie gewohnt weiter.
+            <DragFigure />
+            <p>
+              <strong>Halten und ziehen</strong> wählt einen ganzen Block. Wischen scrollt wie gewohnt weiter.
+            </p>
           </li>
           <li>
-            <strong>Auf den Tag in der Kopfzeile tippen</strong> wählt den ganzen Tag — nochmal tippen leert ihn.
+            <DayFigure />
+            <p>
+              <strong>Auf den Tag in der Kopfzeile tippen</strong> wählt den ganzen Tag — nochmal tippen leert ihn.
+            </p>
           </li>
-        </ul>
+        </ol>
         <p className="hint">Wo du anfängst, entscheidet die Richtung: auf leer wird gemalt, auf gefüllt wird radiert.</p>
         <button type="button" className="ghost" onClick={() => help.current?.close()}>
           Schließen

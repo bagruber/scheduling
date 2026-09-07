@@ -594,13 +594,192 @@ button {
   color: var(--ink);
 }
 
-.help ul {
-  margin: 0 0 0.75rem;
-  padding-left: 1.125rem;
+.help {
+  max-height: 85vh;
+  overflow: auto;
+}
+
+/* --- Anleitung: drei Schleifen aus reinem CSS, keine Bibliothek ---------- */
+
+.tut-list {
+  list-style: none;
+  margin: 0 0 0.875rem;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  font-size: 0.9375rem;
+  gap: 0.875rem;
+}
+
+.tut-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.tut-list p {
+  font-size: 0.875rem;
+}
+
+.tut {
+  flex: 0 0 7rem;
+  width: 7rem;
+  height: auto;
+  display: block;
+}
+
+.tut-paper {
+  fill: var(--paper);
+  stroke: var(--line);
+}
+
+.tut-head {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: 0.75;
+}
+
+.tut-cell {
+  fill: var(--surface);
+  stroke: var(--line-soft);
+  stroke-width: 0.75;
+}
+
+.tut-fill,
+.tut-head-on {
+  fill: var(--accent);
+  opacity: 0;
+}
+
+.tut-dot {
+  /* fill-box, damit scale um die eigene Mitte laeuft und nicht um den
+     Ursprung des Viewports. Die Position setzt das umgebende <g>. */
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+
+.tut-core {
+  fill: var(--ink);
+  opacity: 0.72;
+}
+
+.tut-ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  opacity: 0;
+}
+
+.d-tap,
+.d-day {
+  animation: tutTapDot 3.6s infinite;
+}
+
+.d-tap .tut-ring,
+.d-day .tut-ring {
+  animation: tutTapRing 3.6s infinite;
+}
+
+.f-tap {
+  animation: tutTapFill 3.6s infinite;
+}
+
+.d-drag {
+  animation: tutDragDot 3.6s infinite;
+}
+
+.d-drag .tut-ring {
+  animation: tutHoldRing 3.6s infinite;
+}
+
+.f-drag {
+  animation: tutDragFill 3.6s infinite;
+  animation-delay: calc(var(--i) * 0.055s);
+}
+
+.f-day {
+  animation: tutDayFill 3.6s infinite;
+  animation-delay: calc(var(--i) * 0.06s);
+}
+
+.tut-head-on {
+  animation: tutDayFill 3.6s infinite;
+}
+
+@keyframes tutTapDot {
+  0%, 4% { opacity: 0; transform: scale(1); }
+  6% { opacity: 1; transform: scale(1); }
+  11% { opacity: 1; transform: scale(0.7); }
+  17% { opacity: 1; transform: scale(1); }
+  26%, 48% { opacity: 0; transform: scale(1); }
+  51% { opacity: 1; transform: scale(1); }
+  56% { opacity: 1; transform: scale(0.7); }
+  62% { opacity: 1; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes tutTapRing {
+  0%, 10% { opacity: 0; }
+  13% { opacity: 0.8; }
+  22% { opacity: 0; }
+  54% { opacity: 0; }
+  57% { opacity: 0.8; }
+  66%, 100% { opacity: 0; }
+}
+
+@keyframes tutTapFill {
+  0%, 12% { opacity: 0; }
+  16%, 55% { opacity: 1; }
+  59%, 100% { opacity: 0; }
+}
+
+@keyframes tutDragDot {
+  0%, 4% { opacity: 0; transform: translate(0, 0) scale(1); }
+  6% { opacity: 1; transform: translate(0, 0) scale(1); }
+  13%, 21% { opacity: 1; transform: translate(0, 0) scale(0.7); }
+  48%, 70% { opacity: 1; transform: translate(72px, 38px) scale(0.7); }
+  78%, 100% { opacity: 0; transform: translate(72px, 38px) scale(1); }
+}
+
+/* Zwei Pulse waehrend des Haltens — das ist die Geste, die man lernen muss. */
+@keyframes tutHoldRing {
+  0%, 8% { opacity: 0; }
+  12% { opacity: 0.85; }
+  17% { opacity: 0; }
+  19% { opacity: 0.85; }
+  24%, 100% { opacity: 0; }
+}
+
+@keyframes tutDragFill {
+  0%, 21% { opacity: 0; }
+  26%, 72% { opacity: 1; }
+  78%, 100% { opacity: 0; }
+}
+
+@keyframes tutDayFill {
+  0%, 12% { opacity: 0; }
+  16%, 55% { opacity: 1; }
+  59%, 100% { opacity: 0; }
+}
+
+/* Ohne Bewegung bleibt das Ergebnis der Geste stehen. */
+@media (prefers-reduced-motion: reduce) {
+  .tut-dot,
+  .tut-ring,
+  .tut-fill,
+  .tut-head-on {
+    animation: none;
+  }
+
+  .tut-dot,
+  .tut-fill,
+  .tut-head-on {
+    opacity: 1;
+  }
+
+  .tut-fill {
+    opacity: 0.9;
+  }
 }
 
 .help .hint {
