@@ -42,10 +42,10 @@ body {
 .page {
   max-width: 62rem;
   margin: 0 auto;
-  padding: 1.5rem 1rem 5rem;
+  padding: 1.25rem 1rem 4rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .page-narrow {
@@ -63,7 +63,9 @@ body {
 }
 
 .page.editing .grid-scroll {
-  flex: 1 1 auto;
+  /* Nicht wachsen, nur schrumpfen duerfen: ein kurzes Raster endet dort, wo
+     es endet, ein langes scrollt in sich statt die Seite zu verlaengern. */
+  flex: 0 1 auto;
   min-height: 0;
   max-height: none;
 }
@@ -74,7 +76,7 @@ body {
 }
 
 h1 {
-  font-size: 1.5rem;
+  font-size: 1.375rem;
   line-height: 1.25;
   margin: 0;
   letter-spacing: -0.01em;
@@ -153,9 +155,9 @@ select {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 0.625rem 0.75rem;
+  padding: 0.5rem 0.625rem;
   width: 100%;
-  min-height: 2.75rem;
+  min-height: 2.5rem;
 }
 
 input:focus-visible,
@@ -173,8 +175,8 @@ button {
   border: 1px solid transparent;
   background: none;
   color: inherit;
-  min-height: 2.75rem;
-  padding: 0.5rem 0.875rem;
+  min-height: 2.5rem;
+  padding: 0.4375rem 0.75rem;
 }
 
 .primary {
@@ -185,7 +187,7 @@ button {
   text-decoration: none;
   display: block;
   width: 100%;
-  padding: 0.875rem;
+  padding: 0.75rem;
 }
 
 .primary:disabled {
@@ -247,7 +249,7 @@ button {
 }
 
 .segmented.small button {
-  min-height: 2.25rem;
+  min-height: 2rem;
   padding: 0.25rem 0.625rem;
   font-size: 0.875rem;
 }
@@ -299,7 +301,7 @@ button {
 }
 
 .calendar-head button {
-  min-width: 2.75rem;
+  min-width: 2.5rem;
   font-size: 1.25rem;
   line-height: 1;
 }
@@ -319,7 +321,7 @@ button {
 
 .calendar-day {
   aspect-ratio: 1;
-  min-height: 2.25rem;
+  min-height: 2rem;
   padding: 0;
   font-variant-numeric: tabular-nums;
   border: 1px solid transparent;
@@ -341,8 +343,8 @@ button {
 .grid-scroll {
   overflow: auto;
   /* Der Rahmen soll das Raster umschliessen, nicht die Seitenbreite. */
-  max-width: calc(3.25rem + var(--cols) * 9rem + 2px);
-  max-height: min(68vh, 40rem);
+  max-width: calc(2.75rem + var(--cols) * 8rem + 2px);
+  max-height: min(72vh, 42rem);
   overscroll-behavior: contain;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -351,11 +353,11 @@ button {
 
 .grid {
   display: grid;
-  grid-template-columns: 3.25rem repeat(var(--cols), minmax(2.75rem, 1fr));
+  grid-template-columns: 2.75rem repeat(var(--cols), minmax(2.5rem, 1fr));
   /* Viele Tage muessen schmal genug bleiben, dass horizontal gescrollt
      werden kann statt die Spalten untippbar zu quetschen. */
   width: 100%;
-  min-width: calc(3.25rem + var(--cols) * 2.75rem);
+  min-width: calc(2.75rem + var(--cols) * 2.5rem);
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -386,6 +388,37 @@ button {
 
 .grid-day.is-weekend {
   color: var(--muted);
+}
+
+.grid-day.is-button {
+  min-height: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.grid-day.is-button .grid-day-name {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.grid-day.is-button:hover {
+  background: var(--accent-weak);
+}
+
+/* Schmaler Schlussstreifen unter dem Raster, der nur die Endzeit traegt. */
+.grid-end,
+.grid-end-cell {
+  height: 0.9375rem;
+}
+
+.grid-end {
+  transform: none;
+  line-height: 0.9375rem;
+}
+
+.grid-end-cell {
+  border-top: 1px solid var(--line);
 }
 
 .grid-day-name {
@@ -455,42 +488,92 @@ button {
   pointer-events: none;
 }
 
-.day-quick {
+.grid-bar {
   display: flex;
-  gap: 0.375rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.grid-bar .hint {
+  font-size: 0.8125rem;
+}
+
+.icon {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  min-height: 1.75rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1;
+}
+
+.row.two {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 0.625rem;
+}
+
+.row.two .field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.check.compact {
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
   flex: 0 0 auto;
 }
 
-.day-quick button {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  white-space: nowrap;
-  font-size: 0.875rem;
-  min-height: 2.25rem;
+.check.compact input {
+  margin-top: 0;
+  width: 1rem;
+  height: 1rem;
 }
 
-.sheet {
+.help {
+  width: calc(100% - 2rem);
+  max-width: 26rem;
+  padding: 1.125rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
-  padding: 0.75rem;
+  color: var(--ink);
+  font: inherit;
+}
+
+.help::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.help h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.0625rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.help ul {
+  margin: 0 0 0.75rem;
+  padding-left: 1.125rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  flex: 0 0 auto;
+  font-size: 0.9375rem;
 }
 
-.sheet-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
+.help .hint {
+  margin-bottom: 1rem;
 }
 
-.sheet-options button {
-  border: 1px solid var(--line);
-  flex: 1 0 auto;
+.help button {
+  width: 100%;
 }
 
 /* --- Werkzeugleiste, Rueckgaengig ---------------------------------------- */
@@ -524,9 +607,8 @@ button {
 
 .undo {
   position: fixed;
-  left: 50%;
-  bottom: 4.5rem;
-  transform: translateX(-50%);
+  right: 1rem;
+  bottom: 0.875rem;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -534,7 +616,7 @@ button {
   background: var(--ink);
   color: var(--paper);
   border-radius: 999px;
-  padding: 0.375rem 0.5rem 0.375rem 1rem;
+  padding: 0.25rem;
   font-size: 0.875rem;
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
 }

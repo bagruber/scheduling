@@ -2,18 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Choice, Participant, PollView, Span, Step } from "../../shared/types.ts";
 import { STEPS } from "../../shared/types.ts";
 import { ApiError, deleteEntry, patchPoll, readPoll, saveEntry } from "../lib/api.ts";
-import { bestRanges, cellKey, cellsToSpans, slotsOf, spanCells, tally, toMinutes } from "../lib/grid.ts";
-import { dayLong, dayShort, dayWeekday, joinNames, since } from "../lib/format.ts";
+import { bestRanges, cellKey, cellsToSpans, slotsOf, spanCells, tally } from "../lib/grid.ts";
+import { dayLong, joinNames, since } from "../lib/format.ts";
 import Grid from "../components/Grid.tsx";
 
 const STEP_LABEL: Record<Step, string> = { 15: "15 Min.", 30: "30 Min.", 60: "1 Std.", 120: "2 Std." };
-
-const QUICK = [
-  { label: "ganzer Tag", from: "00:00", to: "24:00" },
-  { label: "vormittags", from: "08:00", to: "12:00" },
-  { label: "nachmittags", from: "12:00", to: "17:00" },
-  { label: "abends", from: "17:00", to: "23:00" },
-];
 
 const keysOf = (cells: Map<string, Choice>, choice: Choice) =>
   [...cells].filter(([, value]) => value === choice).map(([key]) => key);
@@ -26,11 +19,10 @@ export default function PollPage({ id }: { id: string }) {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [editing, setEditing] = useState(false);
-  const [signingIn, setSigningIn] = useState(false);
   const [mine, setMine] = useState<Map<string, Choice>>(new Map());
   const [brush, setBrush] = useState<Choice>("yes");
+  const [showCounts, setShowCounts] = useState(false);
   const [inspect, setInspect] = useState<string | null>(null);
-  const [daySheet, setDaySheet] = useState<string | null>(null);
   const [undo, setUndo] = useState<Map<string, Choice> | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [saveError, setSaveError] = useState("");
@@ -38,6 +30,7 @@ export default function PollPage({ id }: { id: string }) {
 
   const saveTimer = useRef<number | undefined>(undefined);
   const undoTimer = useRef<number | undefined>(undefined);
+  const help = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     readPoll(id)
@@ -55,7 +48,7 @@ export default function PollPage({ id }: { id: string }) {
 
   const times = useMemo(() => (poll ? slotsOf(poll) : []), [poll]);
 
-  // Waehrend des Eintragens zeigt die Gruppenansicht den eigenen, noch nicht
+  // Waehrend des Eintragens zeigt die Auszaehlung den eigenen, noch nicht
   // gespeicherten Stand mit — sonst springt das Raster nach jedem Speichern.
   const displayed: Participant[] = useMemo(() => {
     if (!view || !poll) return [];
@@ -112,9 +105,9 @@ export default function PollPage({ id }: { id: string }) {
     }
     setMine(cells);
     setEditing(true);
-    setSigningIn(false);
     setStatus("idle");
     setSaveError("");
+    setInspect(null);
   }
 
   async function save(cells: Map<string, Choice>) {
@@ -150,12 +143,10 @@ export default function PollPage({ id }: { id: string }) {
     apply(next, new Map(mine));
   }
 
-  function fillDay(day: string, from: string, to: string, erase: boolean) {
-    setDaySheet(null);
-    const keys = times
-      .filter((time) => toMinutes(time) >= toMinutes(from) && toMinutes(time) < toMinutes(to))
-      .map((time) => cellKey(day, time));
-    if (keys.length > 0) commit(keys, erase);
+  /** Kopfzeile eines Tages: ganzen Tag setzen — oder leeren, wenn er schon voll ist. */
+  function toggleDay(day: string) {
+    const keys = times.map((time) => cellKey(day, time));
+    commit(keys, keys.every((key) => mine.get(key) === brush));
   }
 
   // Beide APIs gibt es nur im sicheren Kontext. Ueber http://<ip>:<port> fehlt
@@ -189,38 +180,6 @@ export default function PollPage({ id }: { id: string }) {
 
   return (
     <main className={editing ? "page editing" : "page"}>
-      {editing ? null : (
-      <header className="poll-head">
-        <h1>{poll.title}</h1>
-        {poll.note ? <p className="note">{poll.note}</p> : null}
-        <p className="meta">
-          {poll.days.length} {poll.days.length === 1 ? "Tag" : "Tage"} · {poll.fromTime}–{poll.toTime} ·{" "}
-          {STEP_LABEL[poll.step]} · {displayed.length} {displayed.length === 1 ? "Antwort" : "Antworten"}
-        </p>
-        {closed ? <p className="banner">Geschlossen — Einträge lassen sich nicht mehr ändern.</p> : null}
-      </header>
-      )}
-
-      {ranges.length > 0 && !editing ? (
-        <section className="best">
-          <h2>Passt am besten</h2>
-          <ol>
-            {ranges.map((range) => (
-              <li key={`${range.day}${range.from}`}>
-                <strong>
-                  {dayLong(range.day)}, {range.from}–{range.to}
-                </strong>
-                <span>
-                  {range.yes.length} von {displayed.length}
-                  {range.missing.length > 0 ? ` · ohne ${joinNames(range.missing)}` : " · alle"}
-                  {range.maybe.length > 0 ? ` · vielleicht ${joinNames(range.maybe)}` : ""}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      ) : null}
-
       {editing ? (
         <div className="toolbar">
           <span className="who">{trimmedName}</span>
@@ -247,13 +206,67 @@ export default function PollPage({ id }: { id: string }) {
             Fertig
           </button>
         </div>
-      ) : null}
+      ) : (
+        <>
+          <header className="poll-head">
+            <h1>{poll.title}</h1>
+            {poll.note ? <p className="note">{poll.note}</p> : null}
+            <p className="meta">
+              {poll.days.length} {poll.days.length === 1 ? "Tag" : "Tage"} · {poll.fromTime}–{poll.toTime} ·{" "}
+              {STEP_LABEL[poll.step]} · {displayed.length} {displayed.length === 1 ? "Antwort" : "Antworten"}
+            </p>
+            {closed ? <p className="banner">Geschlossen — Einträge lassen sich nicht mehr ändern.</p> : null}
+          </header>
 
-      <p className="hint grid-hint">
-        {editing
-          ? "Tippen = ein Feld. Halten und ziehen = Block. Wischen scrollt."
-          : "Ein Feld antippen zeigt, wer kann."}
-      </p>
+          {closed ? null : (
+            <section className="signin">
+              <div className="row two">
+                <label className="field">
+                  <span>Dein Name</span>
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    list="known-names"
+                    maxLength={40}
+                    autoFocus
+                  />
+                </label>
+                <label className="field">
+                  <span>Kennwort {needsPassword ? <em>nötig</em> : <em>optional</em>}</span>
+                  <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                </label>
+              </div>
+              <datalist id="known-names">
+                {view.participants.map((person) => (
+                  <option key={person.id} value={person.name} />
+                ))}
+              </datalist>
+              <p className="hint">
+                {needsPassword
+                  ? `„${trimmedName}“ ist mit einem Kennwort geschützt.`
+                  : "Das Kennwort schützt nur diesen Eintrag — nimm bitte nicht dein echtes Passwort."}
+              </p>
+              <button type="button" className="primary" disabled={trimmedName.length === 0} onClick={beginEditing}>
+                {existing ? "Eintrag ändern" : "Verfügbarkeit eintragen"}
+              </button>
+            </section>
+          )}
+        </>
+      )}
+
+      <div className="grid-bar">
+        <p className="hint">
+          {editing ? "Tippen wählt ein Feld, Halten und Ziehen einen Block." : "Ein Feld antippen zeigt, wer kann."}
+        </p>
+        <button
+          type="button"
+          className="icon"
+          aria-label="Hilfe zur Bedienung"
+          onClick={() => help.current?.showModal()}
+        >
+          ?
+        </button>
+      </div>
 
       <Grid
         poll={poll}
@@ -261,44 +274,21 @@ export default function PollPage({ id }: { id: string }) {
         mine={editing ? mine : new Map()}
         counts={counts}
         total={displayed.length}
+        showCounts={showCounts}
         editing={editing}
         brush={brush}
         onCommit={commit}
         onInspect={setInspect}
+        onDayToggle={toggleDay}
       />
 
-      {editing ? (
-        <div className="day-quick">
-          {poll.days.map((day) => (
-            <button key={day} type="button" onClick={() => setDaySheet(daySheet === day ? null : day)}>
-              {dayWeekday(day)} {dayShort(day)}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {daySheet ? (
-        <div className="sheet">
-          <strong>{dayLong(daySheet)}</strong>
-          <div className="sheet-options">
-            {QUICK.filter(
-              (option) =>
-                toMinutes(option.from) < toMinutes(poll.toTime) && toMinutes(option.to) > toMinutes(poll.fromTime),
-            ).map((option) => (
-              <button key={option.label} type="button" onClick={() => fillDay(daySheet, option.from, option.to, false)}>
-                {option.label}
-              </button>
-            ))}
-            <button type="button" className="ghost" onClick={() => fillDay(daySheet, "00:00", "24:00", true)}>
-              kann nicht
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <label className="check compact">
+        <input type="checkbox" checked={showCounts} onChange={(event) => setShowCounts(event.target.checked)} />
+        <span>Antworten anderer zeigen</span>
+      </label>
 
       {undo && editing ? (
         <div className="undo">
-          <span>Geändert</span>
           <button
             type="button"
             onClick={() => {
@@ -320,7 +310,7 @@ export default function PollPage({ id }: { id: string }) {
               <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
             </label>
           ) : null}
-          <button type="button" onClick={() => void save(mine)}>
+          <button type="button" className="ghost" onClick={() => void save(mine)}>
             Erneut speichern
           </button>
         </div>
@@ -348,82 +338,66 @@ export default function PollPage({ id }: { id: string }) {
         </section>
       ) : null}
 
-      {!editing && !closed ? (
-        signingIn ? (
-          <section className="signin">
-            <label className="field">
-              <span>Dein Name</span>
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                list="known-names"
-                maxLength={40}
-                autoFocus
-              />
-            </label>
-            <datalist id="known-names">
-              {view.participants.map((person) => (
-                <option key={person.id} value={person.name} />
-              ))}
-            </datalist>
-            <label className="field">
-              <span>
-                Kennwort {needsPassword ? <em>für diesen Eintrag nötig</em> : <em>optional, schützt deinen Eintrag</em>}
-              </span>
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-            </label>
-            <p className="hint">Kein Konto — nimm bitte nicht dein echtes Passwort.</p>
-            <button type="button" className="primary" disabled={trimmedName.length === 0} onClick={beginEditing}>
-              {existing ? "Eintrag ändern" : "Zeiten eintragen"}
-            </button>
-          </section>
-        ) : (
-          <button type="button" className="primary" onClick={() => setSigningIn(true)}>
-            Zeiten eintragen
-          </button>
-        )
-      ) : null}
-
-      {editing ? null : (
-      <section className="people">
-        <h2>Wer geantwortet hat</h2>
-        {view.participants.length === 0 ? (
-          <p className="hint">Noch niemand.</p>
-        ) : (
-          <ul>
-            {view.participants.map((person) => (
-              <li key={person.id}>
-                <span className="people-name">
-                  {person.name}
-                  {person.locked ? <em title="mit Kennwort geschützt"> · geschützt</em> : null}
+      {!editing && ranges.length > 0 ? (
+        <section className="best">
+          <h2>Passt am besten</h2>
+          <ol>
+            {ranges.map((range) => (
+              <li key={`${range.day}${range.from}`}>
+                <strong>
+                  {dayLong(range.day)}, {range.from}–{range.to}
+                </strong>
+                <span>
+                  {range.yes.length} von {displayed.length}
+                  {range.missing.length > 0 ? ` · ohne ${joinNames(range.missing)}` : " · alle"}
+                  {range.maybe.length > 0 ? ` · vielleicht ${joinNames(range.maybe)}` : ""}
                 </span>
-                <span className="muted">{since(person.updatedAt)}</span>
-                {adminToken ? (
-                  <button
-                    type="button"
-                    className="ghost tiny"
-                    onClick={() => void deleteEntry(id, person.id, { adminToken }).then(refresh)}
-                  >
-                    entfernen
-                  </button>
-                ) : null}
               </li>
             ))}
-          </ul>
-        )}
-      </section>
-      )}
+          </ol>
+        </section>
+      ) : null}
 
-      {editing ? null : (
-      <section className="share">
-        {canShare ? (
-          <button type="button" className="ghost" onClick={() => void share()}>
-            {copied ? "Link kopiert" : "Link teilen"}
-          </button>
-        ) : null}
-        <code>{shareUrl}</code>
-      </section>
-      )}
+      {!editing ? (
+        <>
+          <section className="people">
+            <h2>Wer geantwortet hat</h2>
+            {view.participants.length === 0 ? (
+              <p className="hint">Noch niemand.</p>
+            ) : (
+              <ul>
+                {view.participants.map((person) => (
+                  <li key={person.id}>
+                    <span className="people-name">
+                      {person.name}
+                      {person.locked ? <em title="mit Kennwort geschützt"> · geschützt</em> : null}
+                    </span>
+                    <span className="muted">{since(person.updatedAt)}</span>
+                    {adminToken ? (
+                      <button
+                        type="button"
+                        className="ghost tiny"
+                        onClick={() => void deleteEntry(id, person.id, { adminToken }).then(refresh)}
+                      >
+                        entfernen
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="share">
+            {canShare ? (
+              <button type="button" className="ghost" onClick={() => void share()}>
+                {copied ? "Link kopiert" : "Link teilen"}
+              </button>
+            ) : null}
+            <code>{shareUrl}</code>
+          </section>
+        </>
+      ) : null}
 
       {adminToken && !editing ? (
         <section className="admin">
@@ -457,6 +431,26 @@ export default function PollPage({ id }: { id: string }) {
           </button>
         </section>
       ) : null}
+
+      {/* Platzhalter — die Bewegtbild-Anleitung kommt im zweiten Schritt. */}
+      <dialog className="help" ref={help}>
+        <h2>Zeiten markieren</h2>
+        <ul>
+          <li>
+            <strong>Tippen</strong> schaltet ein einzelnes Feld an oder aus.
+          </li>
+          <li>
+            <strong>Halten und ziehen</strong> wählt einen ganzen Block. Wischen scrollt wie gewohnt weiter.
+          </li>
+          <li>
+            <strong>Auf den Tag in der Kopfzeile tippen</strong> wählt den ganzen Tag — nochmal tippen leert ihn.
+          </li>
+        </ul>
+        <p className="hint">Wo du anfängst, entscheidet die Richtung: auf Leerem wird gemalt, auf Gefülltem radiert.</p>
+        <button type="button" className="ghost" onClick={() => help.current?.close()}>
+          Schließen
+        </button>
+      </dialog>
     </main>
   );
 }
