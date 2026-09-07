@@ -241,11 +241,19 @@ export default function PollPage({ id }: { id: string }) {
                   <option key={person.id} value={person.name} />
                 ))}
               </datalist>
-              <p className="hint">
-                {needsPassword
-                  ? `„${trimmedName}“ ist mit einem Kennwort geschützt.`
-                  : "Das Kennwort schützt nur diesen Eintrag — nimm bitte nicht dein echtes Passwort."}
-              </p>
+              {existing ? (
+                <p className={needsPassword ? "notice is-locked" : "notice"}>
+                  <strong>„{existing.name}“ hat hier schon einen Eintrag.</strong>{" "}
+                  {needsPassword
+                    ? "Er ist mit einem Kennwort geschützt — ohne dieses Kennwort lässt er sich nicht ändern."
+                    : "Wenn du fortfährst, änderst du diesen Eintrag."}
+                </p>
+              ) : (
+                <p className="hint">
+                  Das Kennwort ermöglicht dir, deine Angaben zu ändern. Du erstellst damit kein Konto. Wähle bitte
+                  kein Passwort, das du bereits verwendest.
+                </p>
+              )}
               <button type="button" className="primary" disabled={trimmedName.length === 0} onClick={beginEditing}>
                 {existing ? "Eintrag ändern" : "Verfügbarkeit eintragen"}
               </button>
@@ -256,7 +264,11 @@ export default function PollPage({ id }: { id: string }) {
 
       <div className="grid-bar">
         <p className="hint">
-          {editing ? "Tippen wählt ein Feld, Halten und Ziehen einen Block." : "Ein Feld antippen zeigt, wer kann."}
+          {editing
+            ? "Tippen wählt ein Feld, Halten und Ziehen einen Block."
+            : showCounts
+              ? "Ein Feld antippen zeigt, wer kann."
+              : ""}
         </p>
         <button
           type="button"
@@ -288,17 +300,16 @@ export default function PollPage({ id }: { id: string }) {
       </label>
 
       {undo && editing ? (
-        <div className="undo">
-          <button
-            type="button"
-            onClick={() => {
-              apply(undo, new Map(mine));
-              setUndo(null);
-            }}
-          >
-            Rückgängig
-          </button>
-        </div>
+        <button
+          type="button"
+          className="undo"
+          onClick={() => {
+            apply(undo, new Map(mine));
+            setUndo(null);
+          }}
+        >
+          Rückgängig
+        </button>
       ) : null}
 
       {saveError ? (
@@ -446,7 +457,7 @@ export default function PollPage({ id }: { id: string }) {
             <strong>Auf den Tag in der Kopfzeile tippen</strong> wählt den ganzen Tag — nochmal tippen leert ihn.
           </li>
         </ul>
-        <p className="hint">Wo du anfängst, entscheidet die Richtung: auf Leerem wird gemalt, auf Gefülltem radiert.</p>
+        <p className="hint">Wo du anfängst, entscheidet die Richtung: auf leer wird gemalt, auf gefüllt wird radiert.</p>
         <button type="button" className="ghost" onClick={() => help.current?.close()}>
           Schließen
         </button>
