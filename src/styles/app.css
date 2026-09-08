@@ -64,9 +64,15 @@ body {
   gap: 0.75rem;
 }
 
+/* Nicht wachsen, nur schrumpfen duerfen: ein kurzes Raster endet dort, wo es
+   endet, ein langes scrollt in sich statt aus dem Bildschirm zu laufen. Die
+   Begrenzung muss am Rahmen ansetzen — er ist das Flex-Item, nicht der
+   Scroll-Container darin. */
+.page.editing .grid-frame {
+  flex: 0 1 auto;
+}
+
 .page.editing .grid-scroll {
-  /* Nicht wachsen, nur schrumpfen duerfen: ein kurzes Raster endet dort, wo
-     es endet, ein langes scrollt in sich statt die Seite zu verlaengern. */
   flex: 0 1 auto;
   min-height: 0;
   max-height: none;
@@ -371,6 +377,9 @@ button {
    auch, dass der Weiter-Hinweis rechts an der Rasterkante sitzt. */
 .grid-frame {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   max-width: calc(2.75rem + var(--cols) * 8rem + 2px);
 }
 
@@ -405,7 +414,12 @@ button {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
   max-height: min(72vh, 42rem);
-  overscroll-behavior: contain;
+  /* Waagerecht abfangen, damit ein Wisch ueber die Tage nicht die
+     Zurueck-Geste des Browsers ausloest. Senkrecht aber weiterreichen: sonst
+     versandet jede Wischgeste ueber dem Raster, sobald es keinen eigenen
+     Ueberlauf hat, und die Seite laesst sich nur noch am Rand bewegen. */
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
