@@ -1,15 +1,9 @@
 import type { NewPoll, Poll, PollView, Span } from "../../shared/types.ts";
+import { ApiError } from "./apiError.ts";
+import * as demo from "./demoStore.ts";
 
-export class ApiError extends Error {
-  status: number;
-  needsPassword: boolean;
+export { ApiError };
 
-  constructor(status: number, message: string, needsPassword: boolean) {
-    super(message);
-    this.status = status;
-    this.needsPassword = needsPassword;
-  }
-}
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
@@ -32,10 +26,16 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
 export const createPoll = (input: NewPoll) =>
   request<{ id: string; adminToken: string }>("/api/polls", { method: "POST", body: JSON.stringify(input) });
 
-export const readPoll = (id: string) => request<PollView>(`/api/polls/${id}`);
+// Im Mockup gibt es keinen Server. Nur diese beiden Wege sind dort erreichbar:
+// Anlegen, Loeschen und Verwaltung setzen einen Admin-Token in der URL voraus,
+// den die Demo nie hat.
+export const readPoll = (id: string) =>
+  demo.DEMO ? demo.readPoll() : request<PollView>(`/api/polls/${id}`);
 
 export const saveEntry = (id: string, entry: { name: string; password: string | null; spans: Span[] }) =>
-  request<{ id: number }>(`/api/polls/${id}/entry`, { method: "PUT", body: JSON.stringify(entry) });
+  demo.DEMO
+    ? demo.saveEntry(entry)
+    : request<{ id: number }>(`/api/polls/${id}/entry`, { method: "PUT", body: JSON.stringify(entry) });
 
 export const deleteEntry = (id: string, participantId: number, auth: { password?: string; adminToken?: string }) =>
   request<{ ok: true }>(`/api/polls/${id}/entry/${participantId}`, {

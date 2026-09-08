@@ -6,6 +6,7 @@ import { bestRanges, cellKey, cellsToSpans, slotsOf, spanCells, tally } from "..
 import { dayLong, joinNames, since } from "../lib/format.ts";
 import Grid from "../components/Grid.tsx";
 import { DayFigure, DragFigure, TapFigure } from "../components/HelpFigures.tsx";
+import { DEMO, reset as resetDemo } from "../lib/demoStore.ts";
 
 const STEP_LABEL: Record<Step, string> = { 15: "15 Min.", 30: "30 Min.", 60: "1 Std.", 120: "2 Std." };
 
@@ -224,6 +225,15 @@ export default function PollPage({ id }: { id: string }) {
         </div>
       ) : (
         <>
+          {DEMO ? (
+            <p className="demo-note">
+              Mockup ohne Server — was du einträgst, bleibt in diesem Browser und geht nirgendwo hin.{" "}
+              <button type="button" className="linkish" onClick={resetDemo}>
+                Zurücksetzen
+              </button>
+            </p>
+          ) : null}
+
           <header className="poll-head">
             <h1>{poll.title}</h1>
             {poll.note ? <p className="note">{poll.note}</p> : null}
@@ -463,6 +473,7 @@ export default function PollPage({ id }: { id: string }) {
             )}
           </section>
 
+          {DEMO ? null : (
           <section className="share">
             {canShare ? (
               <button type="button" className="ghost" onClick={() => void share()}>
@@ -471,6 +482,7 @@ export default function PollPage({ id }: { id: string }) {
             ) : null}
             <code>{shareUrl}</code>
           </section>
+          )}
         </>
       ) : null}
 

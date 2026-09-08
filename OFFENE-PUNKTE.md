@@ -28,6 +28,19 @@ pnpm-Store. Also entweder in `baseline.json` aufnehmen (wenn andere Repos das
 auch brauchen koennen) oder ~200 Zeilen QR-Encoder selbst schreiben. Bis dahin:
 Web Share bzw. Zwischenablage.
 
+## Browser-Tests liegen nicht im Repo
+
+Die Gesten, der Kennwortschutz, die Kopfzeilen und die Scroll-Logik wurden mit
+einer Playwright-Reihe gegen den Produktionsbau geprueft (echte Touch-Events
+ueber CDP, 42 Faelle). Committed ist sie nicht: Playwright waere mit Abstand die
+groesste Dev-Abhaengigkeit dieses Repos, und nach der Hausbasis-Regel ist das
+keine Entscheidung fuer ein Repo allein.
+
+Zu klaeren: entweder Playwright in `baseline.json` aufnehmen — `etymology` hat
+es ohnehin schon —, oder die Reihe bleibt ein Werkzeug fuer die Entwicklung und
+laeuft nicht in der CI. Solange sie draussen ist, faellt eine Regression an der
+Geste erst am Geraet auf.
+
 ## Was bewusst fehlt
 
 Nicht vergessen, sondern entschieden:
