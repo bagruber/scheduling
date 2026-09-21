@@ -261,6 +261,28 @@ check(
   (await page.getByRole("button", { name: "Weitere Schicht laden" }).count()) === 0,
 );
 
+await page.getByRole("button", { name: "Letzte entfernen" }).click();
+await wait(300);
+check("Letzte entfernen nimmt sie wieder zurück", (await page.locator(".best ol li").count()) === first);
+check(
+  "Unter dem Noetigen gibt es nichts zu entfernen",
+  (await page.getByRole("button", { name: "Letzte entfernen" }).count()) === 0,
+);
+check(
+  "Stunden je Person im angezeigten Plan",
+  /Stunden je Person: .*\d\s?h/.test(await page.locator(".best").innerText()),
+);
+
+const beforeHours = await page.locator(".best").innerText();
+await page.getByRole("button", { name: "Weitere Schicht laden" }).click();
+await wait(300);
+check(
+  "Die Stunden folgen dem, was angezeigt ist",
+  (await page.locator(".best").innerText()) !== beforeHours,
+);
+await page.getByRole("button", { name: "Letzte entfernen" }).click();
+await wait(300);
+
 await page.goto(`${BASE}/e/${main.id}`);
 await page.locator(".grid").waitFor();
 

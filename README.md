@@ -63,8 +63,15 @@ statt stillschweigend übergangen.
 zunächst, was nötig ist, damit jeder einmal dran war — `planShifts` gibt das als
 `enough` zurück. Darüber hinaus vergibt es weiter, solange freie Fenster übrig
 sind; „Weitere Schicht laden" holt sie einzeln nach und sagt dabei, wie viele
-noch möglich sind. Nachgeladene Schichten rutschen chronologisch an ihren Platz,
-weil das Ergebnis ein Plan ist und keine Liste.
+noch möglich sind, „Letzte entfernen" nimmt sie wieder zurück. Unter das Nötige
+geht es nicht — dort wäre jemand nicht mehr versorgt.
+
+Nachgeladene Schichten rutschen chronologisch an ihren Platz, weil das Ergebnis
+ein Plan ist und keine Liste.
+
+Darunter steht, wie viele Stunden jeder im **aktuell angezeigten** Plan trägt,
+absteigend sortiert. Das ist die Zahl, an der man sieht, ob sich die Last
+verteilt — und sie ändert sich mit, sobald eine Schicht dazukommt oder wegfällt.
 
 Exakt ist das eine Mengenüberdeckung und damit NP-schwer. `planShifts` in
 [`src/lib/grid.ts`](src/lib/grid.ts) läuft deshalb als Heuristik, und zwar

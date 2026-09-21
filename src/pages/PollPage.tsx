@@ -2,13 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Choice, Participant, PollView, Span, Step } from "../../shared/types.ts";
 import { STEPS } from "../../shared/types.ts";
 import { ApiError, deleteEntry, patchPoll, readPoll, saveEntry } from "../lib/api.ts";
-import { bestRanges, cellKey, cellsToSpans, planShifts, slotsOf, spanCells, tally } from "../lib/grid.ts";
+import { bestRanges, cellKey, cellsToSpans, planShifts, slotsOf, spanCells, tally, toMinutes } from "../lib/grid.ts";
 import { dayLong, joinNames, since } from "../lib/format.ts";
 import Grid from "../components/Grid.tsx";
 import { DayFigure, DragFigure, TapFigure } from "../components/HelpFigures.tsx";
 import { DEMO, reset as resetDemo } from "../lib/demoStore.ts";
 
 const STEP_LABEL: Record<Step, string> = { 15: "15 Min.", 30: "30 Min.", 60: "1 Std.", 120: "2 Std." };
+
+const hours = (value: number) => value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
 
 const keysOf = (cells: Map<string, Choice>, choice: Choice) =>
   [...cells].filter(([, value]) => value === choice).map(([key]) => key);
@@ -89,6 +91,17 @@ export default function PollPage({ id }: { id: string }) {
     [plan, visible],
   );
   const placed = new Set(shown.flatMap((shift) => shift.crew)).size;
+
+  // Wie viel jeder im angezeigten Plan traegt — die Zahl, an der man merkt,
+  // ob sich die Last verteilt.
+  const load = useMemo(() => {
+    const total = new Map<string, number>();
+    for (const shift of shown) {
+      const span = (toMinutes(shift.to) - toMinutes(shift.from)) / 60;
+      for (const name of shift.crew) total.set(name, (total.get(name) ?? 0) + span);
+    }
+    return [...total].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  }, [shown]);
 
   // Ein angetippter Name blendet dessen Zeiten ins Raster — sonst muss man sie
   // sich aus der Heatmap zusammenreimen.
@@ -521,12 +534,24 @@ export default function PollPage({ id }: { id: string }) {
                       </li>
                     ))}
                   </ol>
-                  {visible < plan.shifts.length ? (
+                  <p className="hint">
+                    Stunden je Person: {load.map(([name, value]) => `${name} ${hours(value)} h`).join(" · ")}
+                  </p>
+                  {visible < plan.shifts.length || extra > 0 ? (
                     <div className="row">
-                      <button type="button" className="ghost" onClick={() => setExtra(extra + 1)}>
-                        Weitere Schicht laden
-                      </button>
-                      <span className="hint">noch {plan.shifts.length - visible} möglich</span>
+                      {visible < plan.shifts.length ? (
+                        <button type="button" className="ghost" onClick={() => setExtra(extra + 1)}>
+                          Weitere Schicht laden
+                        </button>
+                      ) : null}
+                      {extra > 0 ? (
+                        <button type="button" className="ghost" onClick={() => setExtra(extra - 1)}>
+                          Letzte entfernen
+                        </button>
+                      ) : null}
+                      {visible < plan.shifts.length ? (
+                        <span className="hint">noch {plan.shifts.length - visible} möglich</span>
+                      ) : null}
                     </div>
                   ) : null}
                 </>
