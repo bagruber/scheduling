@@ -50,6 +50,18 @@ TABLE IF NOT EXISTS` allein reicht dafuer, aber sobald eine bestehende Tabelle
 eine Spalte braeuchte, waere ein ausdrueckliches `ALTER TABLE` faellig. Solange
 eine Abstimmung produktiv laeuft, wurde das bewusst vertagt.
 
+## Export ist CSV, nicht xlsx
+
+`src/lib/export.ts` schreibt eine CSV mit Semikolon und BOM; Excel oeffnet die
+in deutscher Einstellung direkt als Tabelle. Formatierung, verbundene Zellen fuer
+die Schicht-Kopfzeile oder farbige Luecken gehen damit nicht.
+
+Ein echtes `.xlsx` ist ein ZIP aus XML. Von Hand ginge das (store-only, ohne
+Kompression), waere aber ~150 Zeilen CRC32 und ZIP-Header; mit Bibliothek waere
+es die einzige Laufzeit-Dependency des Projekts und damit eine
+Hausbasis-Entscheidung. Erst machen, wenn jemand die Formatierung wirklich
+braucht.
+
 ## Was bewusst fehlt
 
 Nicht vergessen, sondern entschieden:

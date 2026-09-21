@@ -286,23 +286,48 @@ describe("staffShifts", () => {
   const d1 = "2026-11-13";
   const yes = (day: string, from: string, to: string) => ({ from: `${day}T${from}`, to: `${day}T${to}`, choice: "yes" as const });
   const shift = (day: string, from: string, to: string, min = 2): DrawnShift => ({ day, from, to, min });
+  const named = (list: { name: string }[]) => list.map((d) => d.name).sort();
 
-  it("teilt nur ein, wer die Schicht ganz abdecken kann", () => {
+  it("nennt auch den, der nur einen Teil der Schicht abdeckt", () => {
+    // Genau der Fall aus der Praxis: 09-11 ist voll besetzt, 11-12 nicht.
+    const [s] = staffShifts(
+      p,
+      [person("Anna", [yes(d0, "09:00", "12:00")]), person("Bo", [yes(d0, "09:00", "11:00")])],
+      [shift(d0, "09:00", "12:00")],
+    );
+    expect(s.duties).toEqual([
+      { name: "Anna", from: "09:00", to: "12:00", whole: true },
+      { name: "Bo", from: "09:00", to: "11:00", whole: false },
+    ]);
+    expect(s.gaps).toEqual([{ from: "11:00", to: "12:00", have: 1 }]);
+  });
+
+  it("meldet keine Luecke, wenn die Mindestzahl durchgehend erreicht wird", () => {
+    const [s] = staffShifts(
+      p,
+      [person("Anna", [yes(d0, "09:00", "12:00")]), person("Bo", [yes(d0, "09:00", "12:00")])],
+      [shift(d0, "09:00", "12:00")],
+    );
+    expect(s.gaps).toEqual([]);
+    expect(s.duties.every((d) => d.whole)).toBe(true);
+  });
+
+  it("haelt die Besetzung ueber die Stunden stabil", () => {
     const [s] = staffShifts(
       p,
       [
-        person("Anna", [yes(d0, "09:00", "12:00")]),
-        person("Bo", [yes(d0, "09:00", "10:00")]),
-        person("Cem", [yes(d0, "09:00", "12:00")]),
+        person("Anna", [yes(d0, "09:00", "11:00")]),
+        person("Bo", [yes(d0, "09:00", "11:00")]),
+        person("Cem", [yes(d0, "09:00", "11:00")]),
       ],
-      [shift(d0, "09:00", "12:00")],
+      [shift(d0, "09:00", "11:00")],
     );
-    expect(s.crew).not.toContain("Bo");
-    expect(s.crew).toHaveLength(2);
+    expect(s.duties).toHaveLength(2);
+    expect(s.duties.every((d) => d.whole)).toBe(true);
+    expect(s.standby).toHaveLength(1);
   });
 
   it("nimmt zuerst, wer insgesamt am wenigsten Zeit angeboten hat", () => {
-    // Alle drei koennen, aber Cem hat nur dieses eine Fenster genannt.
     const [s] = staffShifts(
       p,
       [
@@ -312,7 +337,7 @@ describe("staffShifts", () => {
       ],
       [shift(d0, "09:00", "10:00")],
     );
-    expect(s.crew).toContain("Cem");
+    expect(named(s.duties)).toContain("Cem");
     expect(s.standby).toHaveLength(1);
   });
 
@@ -327,14 +352,12 @@ describe("staffShifts", () => {
       ],
       [shift(d0, "09:00", "11:00"), shift(d0, "11:00", "13:00")],
     );
-    const alle = shifts.flatMap((s) => s.crew);
+    const alle = shifts.flatMap((s) => named(s.duties));
     expect(alle).toHaveLength(4);
     expect(new Set(alle).size).toBe(4);
   });
 
   it("besetzt die knappe Schicht vor der bequemen", () => {
-    // Nur Anna und Bo koennen frueh; spaeter koennen alle. Wer chronologisch
-    // besetzt, verbraucht Anna und Bo zuerst und laesst die Fruehschicht leer.
     const shifts = staffShifts(
       p,
       [
@@ -345,15 +368,9 @@ describe("staffShifts", () => {
       ],
       [shift(d0, "09:00", "11:00"), shift(d0, "11:00", "13:00")],
     );
-    expect(shifts[0].missing).toBe(0);
-    expect(shifts[1].missing).toBe(0);
-    expect(shifts[0].crew.sort()).toEqual(["Anna", "Bo"]);
-  });
-
-  it("meldet, wenn die Mindestzahl nicht erreicht wird", () => {
-    const [s] = staffShifts(p, [person("Anna", [yes(d0, "09:00", "10:00")])], [shift(d0, "09:00", "10:00", 3)]);
-    expect(s.crew).toEqual(["Anna"]);
-    expect(s.missing).toBe(2);
+    expect(shifts[0].gaps).toEqual([]);
+    expect(shifts[1].gaps).toEqual([]);
+    expect(named(shifts[0].duties)).toEqual(["Anna", "Bo"]);
   });
 
   it("achtet die Mindestzahl jeder Schicht einzeln", () => {
@@ -363,8 +380,14 @@ describe("staffShifts", () => {
       person("Cem", [yes(d0, "09:00", "13:00")]),
     ];
     const shifts = staffShifts(p, people, [shift(d0, "09:00", "11:00", 3), shift(d0, "11:00", "13:00", 1)]);
-    expect(shifts[0].crew).toHaveLength(3);
-    expect(shifts[1].crew).toHaveLength(1);
+    expect(shifts[0].duties).toHaveLength(3);
+    expect(shifts[1].duties).toHaveLength(1);
+  });
+
+  it("meldet eine Luecke ueber die ganze Schicht, wenn niemand kann", () => {
+    const [s] = staffShifts(p, [person("Anna", [yes(d1, "09:00", "10:00")])], [shift(d0, "09:00", "11:00", 2)]);
+    expect(s.duties).toEqual([]);
+    expect(s.gaps).toEqual([{ from: "09:00", to: "11:00", have: 0 }]);
   });
 
   it("liefert nichts ohne gezeichnete Schichten", () => {

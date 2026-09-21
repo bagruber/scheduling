@@ -20,6 +20,7 @@ import { dayLong, joinNames, since } from "../lib/format.ts";
 import Grid from "../components/Grid.tsx";
 import { DayFigure, DragFigure, TapFigure } from "../components/HelpFigures.tsx";
 import { DEMO, reset as resetDemo } from "../lib/demoStore.ts";
+import { rosterCsv, rosterFilename } from "../lib/export.ts";
 
 const STEP_LABEL: Record<Step, string> = { 15: "15 Min.", 30: "30 Min.", 60: "1 Std.", 120: "2 Std." };
 
@@ -137,7 +138,18 @@ export default function PollPage({ id }: { id: string }) {
     () => (poll ? staffShifts(poll, displayed, drawnShifts) : []),
     [poll, displayed, drawnShifts],
   );
-  const drawnLoad = useMemo(() => hoursPerPerson(staffed), [staffed]);
+  // Jeder Einsatz bringt seine eigene Dauer mit — wer nur einen Teil der
+  // Schicht traegt, bekommt auch nur den angerechnet.
+  const drawnLoad = useMemo(() => {
+    const total = new Map<string, number>();
+    for (const shift of staffed) {
+      for (const duty of shift.duties) {
+        const span = (toMinutes(duty.to) - toMinutes(duty.from)) / 60;
+        total.set(duty.name, (total.get(duty.name) ?? 0) + span);
+      }
+    }
+    return [...total].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  }, [staffed]);
 
   // Ein angetippter Name blendet dessen Zeiten ins Raster — sonst muss man sie
   // sich aus der Heatmap zusammenreimen.
@@ -269,6 +281,17 @@ export default function PollPage({ id }: { id: string }) {
     } catch {
       // Kopieren abgelehnt — die URL steht ohnehin daneben.
     }
+  }
+
+  /** Die Einteilung als Tabelle — Spalten je Stunde, Zeilen je Person. */
+  function downloadRoster() {
+    const blob = new Blob([rosterCsv(poll!, staffed)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = rosterFilename(poll!);
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function changePoll(patch: Record<string, unknown>) {
@@ -645,16 +668,24 @@ export default function PollPage({ id }: { id: string }) {
                 <>
                   <ol>
                     {staffed.map((shift) => (
-                      <li key={`${shift.day}${shift.from}`} className={shift.missing > 0 ? "is-short" : ""}>
+                      <li key={`${shift.day}${shift.from}`} className={shift.gaps.length > 0 ? "is-short" : ""}>
                         <strong>
                           {dayLong(shift.day)}, {shift.from}–{shift.to}
                         </strong>
-                        <span>{shift.crew.length > 0 ? joinNames(shift.crew) : "niemand kann durchgehend"}</span>
-                        {shift.missing > 0 ? (
-                          <span className="short-note">
-                            {shift.missing} {shift.missing === 1 ? "fehlt" : "fehlen"} bis {shift.min}
+                        <span>
+                          {shift.duties.length === 0
+                            ? "niemand kann"
+                            : joinNames(
+                                shift.duties.map((duty) =>
+                                  duty.whole ? duty.name : `${duty.name} (nur ${duty.from}–${duty.to})`,
+                                ),
+                              )}
+                        </span>
+                        {shift.gaps.map((gap) => (
+                          <span key={gap.from} className="short-note">
+                            {gap.from}–{gap.to}: nur {gap.have} von {shift.min}
                           </span>
-                        ) : null}
+                        ))}
                         {shift.standby.length > 0 ? (
                           <span className="muted">könnte einspringen: {joinNames(shift.standby)}</span>
                         ) : null}
@@ -680,16 +711,21 @@ export default function PollPage({ id }: { id: string }) {
                   <p className="hint">
                     Stunden je Person: {drawnLoad.map(([name, value]) => `${name} ${hours(value)} h`).join(" · ")}
                   </p>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => {
-                      setDrawnCells(new Map());
-                      setMins(new Map());
-                    }}
-                  >
-                    Markierung leeren
-                  </button>
+                  <div className="row">
+                    <button type="button" className="ghost" onClick={downloadRoster}>
+                      Als Tabelle laden
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => {
+                        setDrawnCells(new Map());
+                        setMins(new Map());
+                      }}
+                    >
+                      Markierung leeren
+                    </button>
+                  </div>
                 </>
               )}
             </>

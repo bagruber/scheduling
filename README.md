@@ -102,13 +102,48 @@ Schicht trägt ihre eigene Mindestzahl, änderbar im laufenden Betrieb: erst mit
 drei planen, für die dünnen Zeiten auf zwei gehen. Wird sie nicht erreicht,
 steht es an der Schicht statt im Verborgenen.
 
-Besetzt wird nach derselben Logik wie oben — wer die wenigsten Dienste hat,
-dann wer insgesamt am wenigsten Zeit angeboten hat. Der zweite Punkt ist der
-wichtige: wer nur zwei Fenster genannt hat, käme sonst nie zum Zug, weil die
-Flexiblen überall passen. Und die Schichten werden nicht chronologisch besetzt,
-sondern beginnend mit der, für die es die wenigsten Leute gibt; sonst verbraucht
-eine früh liegende, gut besetzbare Schicht Leute, die eine spätere dringender
-braucht. Eingeteilt wird nur, wer die Schicht **ganz** abdecken kann.
+Besetzt wird **stundenweise, nicht am Stück**. Eine Schicht von 09 bis 14 kann
+in den ersten Stunden voll besetzt sein und in der letzten nicht. Wer die
+Schicht als Ganzes betrachtet, müsste sie dann entweder verwerfen oder nur
+Leute einteilen, die alle Stunden können — beides verschenkt Besetzung. Deshalb
+fällt die Entscheidung je Rasterzeile, und wer nur einen Teil abdeckt, steht mit
+seinem Abschnitt da:
+
+```
+Donnerstag, 12. November, 09:00–14:00
+Anna und Fee (nur 10:00–14:00)
+09:00–10:00: nur 1 von 2
+könnte einspringen: Bo
+```
+
+Wer eingeteilt wird, entscheidet sich in dieser Reihenfolge: wer in der Stunde
+davor schon stand, bleibt — sonst wechselt die Besetzung ständig —, dann wer
+bisher die wenigsten Dienste hat, dann wer insgesamt am wenigsten Zeit angeboten
+hat. Der letzte Punkt ist der wichtige: wer nur zwei Fenster genannt hat, käme
+sonst nie zum Zug, weil die Flexiblen überall passen. Und die Schichten werden
+nicht chronologisch besetzt, sondern beginnend mit der, für die es die wenigsten
+Leute gibt; sonst verbraucht eine früh liegende, gut besetzbare Schicht Leute,
+die eine spätere dringender braucht.
+
+### Als Tabelle herunterladen
+
+„Als Tabelle laden" gibt die Einteilung als Matrix aus: Spalten sind die
+Stunden, gruppiert unter ihrer Schicht, Zeilen die eingeteilten Personen, ein
+`x` heißt eingeteilt. Darunter zwei Zeilen mit der tatsächlichen Besetzung und
+der Mindestzahl je Stunde — dort sieht man die Lücken auf einen Blick.
+
+```
+Schicht;Do 12.11. 09:00–14:00;Do 12.11. 09:00–14:00;…
+Person;09:00–10:00;10:00–11:00;…;Stunden
+Anna;x;x;…;5
+Fee;;x;…;4
+Besetzt;1;2;…
+Mindestens;2;2;…
+```
+
+Es ist eine CSV mit Semikolon und BOM, keine echte `.xlsx`. Excel öffnet sie in
+deutscher Einstellung direkt als Tabelle, ohne Importdialog. Ein echtes `.xlsx`
+wäre ein ZIP aus XML und bräuchte eine Bibliothek — die einzige im Projekt.
 
 Die gemalten Schichten leben in der Seite, nicht in der Datenbank — ein Reload
 verwirft sie. Sie zu speichern wäre eine Schemaänderung; siehe
@@ -149,6 +184,7 @@ src/
   lib/grid.ts          Zeiträume <-> Rasterfelder, Auszählung, Bestzeiten,
                        Schichtplan, Besetzung gezeichneter Schichten
   lib/grid.test.ts     Tests dazu
+  lib/export.ts        Einteilung als CSV für Excel
   lib/api.ts           fetch-Hüllen, im Mockup auf demoStore umgebogen
   lib/demoStore.ts     localStorage-Ersatz für die Demo
   lib/router.ts        zwei Routen, keine Bibliothek

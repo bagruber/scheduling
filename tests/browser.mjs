@@ -8,6 +8,7 @@
 // Playwright wird dort gesucht, wo es liegt: als eigene Abhaengigkeit, oder
 // ueber PLAYWRIGHT_FROM=<pfad zu einem repo, das es hat>.
 import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 async function loadPlaywright() {
@@ -53,6 +54,7 @@ const context = await browser.newContext({
   deviceScaleFactor: 2,
   locale: "de-DE",
   timezoneId: "Europe/Berlin",
+  acceptDownloads: true,
 });
 const page = await context.newPage();
 page.on("pageerror", (error) => console.log("[pageerror]", error.message));
@@ -258,8 +260,42 @@ await wait(300);
 check(
   "Die Mindestzahl jeder Schicht laesst sich einzeln aendern",
   (await page.locator(".best li.is-short").count()) === 1 &&
-    (await page.locator(".best").innerText()).includes("fehlt bis 3"),
+    (await page.locator(".best").innerText()).includes("nur 2 von 3"),
   (await page.locator(".best ol li").first().innerText()).replace(/\s+/g, " "),
+);
+await page.getByLabel(/Mindestzahl für/).last().selectOption("2");
+await wait(300);
+
+// Zweite Stunde dazumalen: dort kann niemand — die erste bleibt trotzdem besetzt.
+await page.locator(`[data-key="${days[0]}T10:00"]`).tap();
+await wait(400);
+const teilText = await page.locator(".best ol li").first().innerText();
+check(
+  "Wer nur einen Teil traegt, steht mit seinem Abschnitt da",
+  teilText.includes("nur 09:00–10:00") && teilText.includes("10:00–11:00: nur 0 von 2"),
+  teilText.replace(/\s+/g, " "),
+);
+
+const [download] = await Promise.all([
+  page.waitForEvent("download"),
+  page.getByRole("button", { name: "Als Tabelle laden" }).click(),
+]);
+const csv = (await readFile(await download.path(), "utf8")).replace("\ufeff", "").trim().split("\r\n");
+check("Der Dateiname kommt vom Titel", /schichten\.csv$/.test(download.suggestedFilename()), download.suggestedFilename());
+check(
+  "Erste Kopfzeile nennt die Schicht, zweite die Stunden",
+  csv[0].startsWith("Schicht;") && csv[1] === "Person;09:00–10:00;10:00–11:00;Stunden",
+  csv[1],
+);
+check(
+  "Eingeteilte Stunden sind angekreuzt, freie nicht",
+  csv.some((line) => line === "Anna;x;;1") && csv.some((line) => line === "Bo;x;;1"),
+  csv.slice(2, 4).join(" | "),
+);
+check(
+  "Besetzung und Mindestzahl stehen je Stunde darunter",
+  csv.includes("Besetzt;2;0") && csv.includes("Mindestens;2;2"),
+  csv.slice(-2).join(" | "),
 );
 
 await page.getByRole("button", { name: "Markierung leeren" }).click();
