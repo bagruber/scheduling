@@ -233,6 +233,34 @@ check(
 );
 
 
+// Die Anzahl der Schichten steht nicht vorab fest: gezeigt wird, was noetig
+// ist, damit jeder einmal dran war — der Rest laesst sich nachladen.
+const more = await createPoll({ title: "Nachladen", step: 60, days, fromTime: "09:00", toTime: "12:00" });
+for (const name of ["Anna", "Bo"]) {
+  await putEntry(more.id, {
+    name,
+    spans: [
+      { from: `${days[0]}T09:00`, to: `${days[0]}T11:00`, choice: "yes" },
+      { from: `${days[1]}T09:00`, to: `${days[1]}T11:00`, choice: "yes" },
+    ],
+  });
+}
+await page.goto(`${BASE}/e/${more.id}`);
+await page.locator(".grid").waitFor();
+await page.getByRole("button", { name: "Mehrere Schichten" }).click();
+await wait(300);
+const first = await page.locator(".best ol li").count();
+check("Zuerst nur so viele Schichten wie nötig", first === 1, `${first} Schichten`);
+check("Nachladen wird angeboten", (await page.getByRole("button", { name: "Weitere Schicht laden" }).count()) === 1);
+
+await page.getByRole("button", { name: "Weitere Schicht laden" }).click();
+await wait(300);
+check("Weitere Schicht wird nachgeladen", (await page.locator(".best ol li").count()) === first + 1);
+check(
+  "Ist alles geladen, verschwindet der Knopf",
+  (await page.getByRole("button", { name: "Weitere Schicht laden" }).count()) === 0,
+);
+
 await page.goto(`${BASE}/e/${main.id}`);
 await page.locator(".grid").waitFor();
 

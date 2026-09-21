@@ -146,9 +146,9 @@ describe("bestRanges", () => {
 
 describe("planShifts", () => {
   const p = poll(60, ["2026-11-12", "2026-11-13"], "09:00", "13:00");
-  const yes = (day: string, from: string, to: string) => ({ from: `${day}T${from}`, to: `${day}T${to}`, choice: "yes" as const });
   const d0 = "2026-11-12";
   const d1 = "2026-11-13";
+  const yes = (day: string, from: string, to: string) => ({ from: `${day}T${from}`, to: `${day}T${to}`, choice: "yes" as const });
 
   it("teilt zwei getrennte Gruppen in zwei Schichten ein", () => {
     const plan = planShifts(
@@ -161,8 +161,8 @@ describe("planShifts", () => {
       ],
       2,
     );
-    expect(plan.shifts).toHaveLength(2);
-    expect(plan.shifts.flatMap((s) => s.crew).sort()).toEqual(["Anna", "Bo", "Cem", "Dilan"]);
+    expect(plan.enough).toBe(2);
+    expect(plan.shifts.slice(0, plan.enough).flatMap((s) => s.crew).sort()).toEqual(["Anna", "Bo", "Cem", "Dilan"]);
     expect(plan.unplaceable).toEqual([]);
   });
 
@@ -177,8 +177,33 @@ describe("planShifts", () => {
       ],
       2,
     );
-    expect(plan.shifts).toHaveLength(1);
+    expect(plan.enough).toBe(1);
     expect(plan.shifts[0]).toMatchObject({ from: "12:00", to: "13:00", crew: ["Anna", "Bo", "Cem"] });
+  });
+
+  it("legt sich nicht auf eine Anzahl fest, sondern haelt weitere bereit", () => {
+    const plan = planShifts(
+      p,
+      [
+        person("Anna", [yes(d0, "09:00", "13:00")]),
+        person("Bo", [yes(d0, "09:00", "13:00")]),
+        person("Cem", [yes(d0, "12:00", "13:00")]),
+      ],
+      2,
+    );
+    // Nach einer Schicht war jeder dran, es gibt aber noch ein freies Fenster.
+    expect(plan.shifts.length).toBeGreaterThan(plan.enough);
+    expect(plan.shifts[1]).toMatchObject({ from: "09:00", to: "12:00", crew: ["Anna", "Bo"] });
+  });
+
+  it("gibt kein Fenster zweimal aus", () => {
+    const plan = planShifts(
+      p,
+      [person("Anna", [yes(d0, "09:00", "13:00")]), person("Bo", [yes(d0, "09:00", "13:00")])],
+      2,
+    );
+    const stamps = plan.shifts.map((s) => `${s.day}T${s.from}`);
+    expect(stamps).toHaveLength(new Set(stamps).size);
   });
 
   it("zieht eine Schicht ueber das Fenster, in dem dieselben koennen", () => {
@@ -201,10 +226,11 @@ describe("planShifts", () => {
       ],
       2,
     );
-    expect(plan.shifts).toHaveLength(2);
-    expect(plan.shifts.every((s) => s.crew.length >= 2)).toBe(true);
-    expect(plan.shifts.flatMap((s) => s.crew).filter((n) => n === "Anna")).toHaveLength(2);
-    expect(new Set(plan.shifts.flatMap((s) => s.crew))).toEqual(new Set(["Anna", "Bo", "Cem"]));
+    const nötig = plan.shifts.slice(0, plan.enough);
+    expect(nötig).toHaveLength(2);
+    expect(nötig.every((s) => s.crew.length >= 2)).toBe(true);
+    expect(nötig.flatMap((s) => s.crew).filter((n) => n === "Anna")).toHaveLength(2);
+    expect(new Set(nötig.flatMap((s) => s.crew))).toEqual(new Set(["Anna", "Bo", "Cem"]));
   });
 
   it("teilt niemanden zweimal ein, solange es nicht noetig ist", () => {
@@ -218,24 +244,8 @@ describe("planShifts", () => {
       ],
       2,
     );
-    const crews = plan.shifts.flatMap((s) => s.crew);
+    const crews = plan.shifts.slice(0, plan.enough).flatMap((s) => s.crew);
     expect(crews).toHaveLength(new Set(crews).size);
-  });
-
-  it("nennt als Ersatz, wer auch koennte, aber schon woanders steht", () => {
-    const plan = planShifts(
-      p,
-      [
-        person("Anna", [yes(d0, "09:00", "11:00")]),
-        person("Bo", [yes(d0, "09:00", "10:00")]),
-        person("Cem", [yes(d0, "10:00", "11:00")]),
-      ],
-      2,
-    );
-    // In der zweiten Schicht stehen Anna und Cem; Bo kann dann nicht.
-    expect(plan.shifts[1].standby).toEqual([]);
-    // In der ersten koennen nur Anna und Bo, beide stehen drin.
-    expect(plan.shifts[0].standby).toEqual([]);
   });
 
   it("meldet, wen die Mindestzahl ausschliesst", () => {
@@ -261,11 +271,10 @@ describe("planShifts", () => {
       ],
       2,
     );
-    expect(plan.shifts).toEqual([]);
-    expect(plan.unplaceable).toEqual(["Anna"]);
+    expect(plan).toEqual({ shifts: [], enough: 0, unplaceable: ["Anna"] });
   });
 
   it("liefert nichts, wenn niemand geantwortet hat", () => {
-    expect(planShifts(p, [], 2)).toEqual({ shifts: [], unplaceable: [] });
+    expect(planShifts(p, [], 2)).toEqual({ shifts: [], enough: 0, unplaceable: [] });
   });
 });

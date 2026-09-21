@@ -59,18 +59,26 @@ Die Mindestzahl je Schicht ist einstellbar. Jede ausgegebene Schicht erreicht
 sie; wer in keiner Schicht dieser Größe vorkommt, wird namentlich ausgewiesen
 statt stillschweigend übergangen.
 
+**Auf eine Anzahl von Schichten legt sich nichts vorab fest.** Angezeigt wird
+zunächst, was nötig ist, damit jeder einmal dran war — `planShifts` gibt das als
+`enough` zurück. Darüber hinaus vergibt es weiter, solange freie Fenster übrig
+sind; „Weitere Schicht laden" holt sie einzeln nach und sagt dabei, wie viele
+noch möglich sind. Nachgeladene Schichten rutschen chronologisch an ihren Platz,
+weil das Ergebnis ein Plan ist und keine Liste.
+
 Exakt ist das eine Mengenüberdeckung und damit NP-schwer. `planShifts` in
 [`src/lib/grid.ts`](src/lib/grid.ts) läuft deshalb als Heuristik, und zwar
 bewusst nicht über das jeweils vollste Fenster: das sammelt die Flexiblen
 zuerst ein und lässt am Ende genau die übrig, um die es geht. Stattdessen ist
-immer dran, wer die wenigsten Möglichkeiten hat.
+immer dran, wer bisher die wenigsten Dienste hat — bei Gleichstand, wer die
+wenigsten Möglichkeiten hat.
 
-In eine Schicht kommen alle noch nicht Eingeteilten, die dann können — das
-bringt pro Schicht die meisten neuen Leute hinein. Reicht das nicht bis zur
-Mindestzahl, wird mit schon Eingeteilten aufgefüllt, die mit den wenigsten
-Diensten zuerst. Eine Schicht reicht so weit, wie dieselben Leute können; die
-Schichtlänge ergibt sich also aus den Antworten, nicht aus einer weiteren
-Einstellung.
+In eine Schicht kommen alle, die dann können und bisher am wenigsten dran waren
+— das bringt pro Schicht die meisten neuen Leute hinein. Reicht das nicht bis
+zur Mindestzahl, wird mit den nächst-wenigst-Beanspruchten aufgefüllt. Kein
+Zeitfenster wird zweimal vergeben. Eine Schicht reicht so weit, wie dieselben
+Leute können; die Schichtlänge ergibt sich also aus den Antworten, nicht aus
+einer weiteren Einstellung.
 
 „Vielleicht" zählt hier nicht mit. Für eine Schicht braucht es Zusagen.
 

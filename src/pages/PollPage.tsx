@@ -33,6 +33,7 @@ export default function PollPage({ id }: { id: string }) {
   const [focusPerson, setFocusPerson] = useState<string | null>(null);
   const [planMode, setPlanMode] = useState<"single" | "shifts">("single");
   const [minPeople, setMinPeople] = useState(2);
+  const [extra, setExtra] = useState(0);
 
   const saveTimer = useRef<number | undefined>(undefined);
   const undoTimer = useRef<number | undefined>(undefined);
@@ -76,10 +77,18 @@ export default function PollPage({ id }: { id: string }) {
   const maxPeople = Math.max(1, displayed.length);
   const shiftSize = Math.min(minPeople, maxPeople);
   const plan = useMemo(
-    () => (poll ? planShifts(poll, displayed, shiftSize) : { shifts: [], unplaceable: [] }),
+    () => (poll ? planShifts(poll, displayed, shiftSize) : { shifts: [], enough: 0, unplaceable: [] }),
     [poll, displayed, shiftSize],
   );
-  const placed = new Set(plan.shifts.flatMap((shift) => shift.crew)).size;
+  // planShifts gibt die Schichten in der Reihenfolge aus, in der es sie
+  // vergeben hat. Angezeigt wird erst, was noetig ist, damit jeder einmal dran
+  // war; nachgeladene kommen chronologisch an ihren Platz.
+  const visible = Math.min(plan.enough + extra, plan.shifts.length);
+  const shown = useMemo(
+    () => plan.shifts.slice(0, visible).sort((a, b) => (`${a.day}T${a.from}` < `${b.day}T${b.from}` ? -1 : 1)),
+    [plan, visible],
+  );
+  const placed = new Set(shown.flatMap((shift) => shift.crew)).size;
 
   // Ein angetippter Name blendet dessen Zeiten ins Raster — sonst muss man sie
   // sich aus der Heatmap zusammenreimen.
@@ -491,16 +500,16 @@ export default function PollPage({ id }: { id: string }) {
                 <span className="row-sep">{shiftSize === 1 ? "Person je Schicht" : "Personen je Schicht"}</span>
               </div>
 
-              {plan.shifts.length === 0 ? (
+              {shown.length === 0 ? (
                 <p className="hint">Keine Schicht erreicht diese Mindestzahl.</p>
               ) : (
                 <>
                   <p className="hint">
                     {placed} von {answeredCount} {answeredCount === 1 ? "Person" : "Personen"} eingeteilt, auf{" "}
-                    {plan.shifts.length} {plan.shifts.length === 1 ? "Schicht" : "Schichten"}.
+                    {shown.length} {shown.length === 1 ? "Schicht" : "Schichten"}.
                   </p>
                   <ol>
-                    {plan.shifts.map((shift) => (
+                    {shown.map((shift) => (
                       <li key={`${shift.day}${shift.from}`}>
                         <strong>
                           {dayLong(shift.day)}, {shift.from}–{shift.to}
@@ -512,6 +521,14 @@ export default function PollPage({ id }: { id: string }) {
                       </li>
                     ))}
                   </ol>
+                  {visible < plan.shifts.length ? (
+                    <div className="row">
+                      <button type="button" className="ghost" onClick={() => setExtra(extra + 1)}>
+                        Weitere Schicht laden
+                      </button>
+                      <span className="hint">noch {plan.shifts.length - visible} möglich</span>
+                    </div>
+                  ) : null}
                 </>
               )}
 
