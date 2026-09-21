@@ -28,18 +28,19 @@ pnpm-Store. Also entweder in `baseline.json` aufnehmen (wenn andere Repos das
 auch brauchen koennen) oder ~200 Zeilen QR-Encoder selbst schreiben. Bis dahin:
 Web Share bzw. Zwischenablage.
 
-## Browser-Tests liegen nicht im Repo
+## Playwright ist keine Abhaengigkeit dieses Repos
 
-Die Gesten, der Kennwortschutz, die Kopfzeilen und die Scroll-Logik wurden mit
-einer Playwright-Reihe gegen den Produktionsbau geprueft (echte Touch-Events
-ueber CDP, 42 Faelle). Committed ist sie nicht: Playwright waere mit Abstand die
-groesste Dev-Abhaengigkeit dieses Repos, und nach der Hausbasis-Regel ist das
-keine Entscheidung fuer ein Repo allein.
+`tests/browser.mjs` liegt im Repo, laeuft aber nicht in der CI: Playwright waere
+mit Abstand die groesste Dev-Abhaengigkeit hier, und nach der Hausbasis-Regel ist
+das keine Entscheidung fuer ein Repo allein. Die Datei sucht Playwright deshalb
+erst als eigenes Paket und faellt dann auf `PLAYWRIGHT_FROM` zurueck.
 
-Zu klaeren: entweder Playwright in `baseline.json` aufnehmen — `etymology` hat
-es ohnehin schon —, oder die Reihe bleibt ein Werkzeug fuer die Entwicklung und
-laeuft nicht in der CI. Solange sie draussen ist, faellt eine Regression an der
-Geste erst am Geraet auf.
+Zu klaeren: Playwright in `baseline.json` aufnehmen — `etymology` hat es ohnehin
+schon —, dann koennte die Reihe in die CI. Solange sie nur von Hand laeuft,
+faellt eine Regression an der Geste erst am Geraet auf.
+
+Am 21.09.2026 ist die aeltere, nicht eingecheckte Fassung dieser Tests mit dem
+Zwischenspeicher verloren gegangen. Deshalb liegt sie jetzt im Repo.
 
 ## Was bewusst fehlt
 

@@ -160,3 +160,87 @@ export function bestRanges(poll: Poll, participants: Participant[], limit = 3): 
   );
   return ranges.slice(0, limit);
 }
+
+export type Shift = {
+  day: string;
+  from: string;
+  to: string;
+  people: string[];
+  covers: string[];
+};
+
+export type Plan = { shifts: Shift[]; unplaceable: string[] };
+
+/**
+ * Mehrere Termine so waehlen, dass moeglichst jeder in mindestens einem
+ * vorkommt — fuer Schichten, nicht fuer eine Sitzung.
+ *
+ * Exakt ist das eine Mengenueberdeckung und damit NP-schwer. Hier laeuft eine
+ * Heuristik, die immer zuerst den bedient, der die wenigsten Moeglichkeiten
+ * hat. Der naheliegende Gegenentwurf — immer das vollste Feld nehmen — sammelt
+ * die Flexiblen zuerst ein und laesst die Knappen am Ende uebrig, also genau
+ * die, um die es geht.
+ *
+ * "Vielleicht" zaehlt nicht mit: fuer eine Schicht braucht es Zusagen.
+ */
+export function planShifts(poll: Poll, participants: Participant[], minPeople: number): Plan {
+  const counts = tally(poll, participants);
+  const slots = slotsOf(poll);
+  const yesAt = (day: string, time: string) => counts.get(cellKey(day, time))?.yes ?? [];
+
+  const cells: { day: string; time: string; yes: string[] }[] = [];
+  for (const day of poll.days) {
+    for (const time of slots) {
+      const yes = yesAt(day, time);
+      if (yes.length >= minPeople) cells.push({ day, time, yes });
+    }
+  }
+
+  const answered = participants.filter((p) => p.spans.some((s) => s.choice === "yes")).map((p) => p.name);
+  const reachable = new Set(cells.flatMap((cell) => cell.yes));
+  const unplaceable = answered.filter((name) => !reachable.has(name));
+  const uncovered = new Set(answered.filter((name) => reachable.has(name)));
+
+  const shifts: Shift[] = [];
+  while (uncovered.size > 0) {
+    let scarcest = "";
+    let fewest = Infinity;
+    for (const name of uncovered) {
+      const options = cells.filter((cell) => cell.yes.includes(name)).length;
+      if (options < fewest) {
+        fewest = options;
+        scarcest = name;
+      }
+    }
+
+    const chosen = cells
+      .filter((cell) => cell.yes.includes(scarcest))
+      .sort(
+        (a, b) =>
+          b.yes.filter((name) => uncovered.has(name)).length - a.yes.filter((name) => uncovered.has(name)).length ||
+          b.yes.length - a.yes.length ||
+          (cellKey(a.day, a.time) < cellKey(b.day, b.time) ? -1 : 1),
+      )[0];
+    if (!chosen) break;
+
+    // Solange dieselben Leute koennen, ist es dieselbe Schicht — das macht aus
+    // einem 30-Minuten-Feld das Fenster, das tatsaechlich allen passt.
+    const signature = yesAt(chosen.day, chosen.time).join("\u0000");
+    let first = slots.indexOf(chosen.time);
+    let last = first;
+    while (first > 0 && yesAt(chosen.day, slots[first - 1]).join("\u0000") === signature) first -= 1;
+    while (last < slots.length - 1 && yesAt(chosen.day, slots[last + 1]).join("\u0000") === signature) last += 1;
+
+    shifts.push({
+      day: chosen.day,
+      from: slots[first],
+      to: toClock(toMinutes(slots[last]) + poll.step),
+      people: chosen.yes,
+      covers: chosen.yes.filter((name) => uncovered.has(name)),
+    });
+    for (const name of chosen.yes) uncovered.delete(name);
+  }
+
+  shifts.sort((a, b) => (`${a.day}T${a.from}` < `${b.day}T${b.from}` ? -1 : 1));
+  return { shifts, unplaceable };
+}

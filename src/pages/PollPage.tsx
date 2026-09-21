@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Choice, Participant, PollView, Span, Step } from "../../shared/types.ts";
 import { STEPS } from "../../shared/types.ts";
 import { ApiError, deleteEntry, patchPoll, readPoll, saveEntry } from "../lib/api.ts";
-import { bestRanges, cellKey, cellsToSpans, slotsOf, spanCells, tally } from "../lib/grid.ts";
+import { bestRanges, cellKey, cellsToSpans, planShifts, slotsOf, spanCells, tally } from "../lib/grid.ts";
 import { dayLong, joinNames, since } from "../lib/format.ts";
 import Grid from "../components/Grid.tsx";
 import { DayFigure, DragFigure, TapFigure } from "../components/HelpFigures.tsx";
@@ -30,6 +30,9 @@ export default function PollPage({ id }: { id: string }) {
   const [saveError, setSaveError] = useState("");
   const [copied, setCopied] = useState(false);
   const [calling, setCalling] = useState(false);
+  const [focusPerson, setFocusPerson] = useState<string | null>(null);
+  const [planMode, setPlanMode] = useState<"single" | "shifts">("single");
+  const [minPeople, setMinPeople] = useState(2);
 
   const saveTimer = useRef<number | undefined>(undefined);
   const undoTimer = useRef<number | undefined>(undefined);
@@ -68,6 +71,24 @@ export default function PollPage({ id }: { id: string }) {
 
   const counts = useMemo(() => (poll ? tally(poll, displayed) : new Map()), [poll, displayed]);
   const ranges = useMemo(() => (poll ? bestRanges(poll, displayed) : []), [poll, displayed]);
+
+  const maxPeople = Math.max(1, displayed.length);
+  const shiftSize = Math.min(minPeople, maxPeople);
+  const plan = useMemo(
+    () => (poll ? planShifts(poll, displayed, shiftSize) : { shifts: [], unplaceable: [] }),
+    [poll, displayed, shiftSize],
+  );
+
+  // Ein angetippter Name blendet dessen Zeiten ins Raster — sonst muss man sie
+  // sich aus der Heatmap zusammenreimen.
+  const focusCells = useMemo(() => {
+    const cells = new Map<string, Choice>();
+    const person = poll && focusPerson ? displayed.find((p) => p.name === focusPerson) : undefined;
+    if (!poll || !person) return cells;
+    for (const key of spanCells(person.spans, poll, "yes").keys()) cells.set(key, "yes");
+    for (const key of spanCells(person.spans, poll, "maybe").keys()) if (!cells.has(key)) cells.set(key, "maybe");
+    return cells;
+  }, [poll, displayed, focusPerson]);
 
   if (loadError) {
     return (
@@ -296,11 +317,20 @@ export default function PollPage({ id }: { id: string }) {
         </>
       )}
 
-      {editing || showCounts ? (
+      {editing || showCounts || focusPerson ? (
         <div className="grid-bar">
           <p className="hint">
-            {editing ? "Tippen wählt ein Feld, Halten und Ziehen einen Block." : "Ein Feld antippen zeigt, wer kann."}
+            {editing
+              ? "Tippen wählt ein Feld, Halten und Ziehen einen Block."
+              : focusPerson
+                ? `Zeiten von ${focusPerson}`
+                : "Ein Feld antippen zeigt, wer kann."}
           </p>
+          {focusPerson && !editing ? (
+            <button type="button" className="ghost tiny" onClick={() => setFocusPerson(null)}>
+              Alle zeigen
+            </button>
+          ) : null}
           {editing ? (
             <button
               type="button"
@@ -317,10 +347,10 @@ export default function PollPage({ id }: { id: string }) {
       <Grid
         poll={poll}
         times={times}
-        mine={editing ? mine : new Map()}
+        mine={editing ? mine : focusCells}
         counts={counts}
         total={displayed.length}
-        showCounts={showCounts}
+        showCounts={showCounts && !focusPerson}
         editing={editing}
         brush={brush}
         onCommit={commit}
@@ -400,23 +430,91 @@ export default function PollPage({ id }: { id: string }) {
         </section>
       ) : null}
 
-      {!editing && ranges.length > 0 ? (
+      {!editing && displayed.length > 0 ? (
         <section className="best">
-          <h2>Passt am besten</h2>
-          <ol>
-            {ranges.map((range) => (
-              <li key={`${range.day}${range.from}`}>
-                <strong>
-                  {dayLong(range.day)}, {range.from}–{range.to}
-                </strong>
-                <span>
-                  {range.yes.length} von {displayed.length}
-                  {range.missing.length > 0 ? ` · ohne ${joinNames(range.missing)}` : " · alle"}
-                  {range.maybe.length > 0 ? ` · vielleicht ${joinNames(range.maybe)}` : ""}
-                </span>
-              </li>
-            ))}
-          </ol>
+          <div className="best-head">
+            <h2>Auswertung</h2>
+            <div className="segmented small">
+              <button
+                type="button"
+                className={planMode === "single" ? "is-on" : ""}
+                onClick={() => setPlanMode("single")}
+              >
+                Ein Termin
+              </button>
+              <button
+                type="button"
+                className={planMode === "shifts" ? "is-on" : ""}
+                onClick={() => setPlanMode("shifts")}
+              >
+                Mehrere Schichten
+              </button>
+            </div>
+          </div>
+
+          {planMode === "single" ? (
+            ranges.length === 0 ? (
+              <p className="hint">Noch hat niemand Zeiten eingetragen.</p>
+            ) : (
+              <ol>
+                {ranges.map((range) => (
+                  <li key={`${range.day}${range.from}`}>
+                    <strong>
+                      {dayLong(range.day)}, {range.from}–{range.to}
+                    </strong>
+                    <span>
+                      {range.yes.length} von {displayed.length}
+                      {range.missing.length > 0 ? ` · ohne ${joinNames(range.missing)}` : " · alle"}
+                      {range.maybe.length > 0 ? ` · vielleicht ${joinNames(range.maybe)}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )
+          ) : (
+            <>
+              <div className="row">
+                <span className="field-label">Mindestens</span>
+                <select
+                  value={shiftSize}
+                  aria-label="Mindestzahl an Personen je Schicht"
+                  onChange={(event) => setMinPeople(Number(event.target.value))}
+                >
+                  {Array.from({ length: maxPeople }, (_, i) => i + 1).map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <span className="row-sep">{shiftSize === 1 ? "Person je Schicht" : "Personen je Schicht"}</span>
+              </div>
+
+              {plan.shifts.length === 0 ? (
+                <p className="hint">Keine Schicht erreicht diese Mindestzahl.</p>
+              ) : (
+                <ol>
+                  {plan.shifts.map((shift) => (
+                    <li key={`${shift.day}${shift.from}`}>
+                      <strong>
+                        {dayLong(shift.day)}, {shift.from}–{shift.to}
+                      </strong>
+                      <span>{joinNames(shift.people)}</span>
+                      {shift.covers.length > 0 && shift.covers.length < shift.people.length ? (
+                        <span>
+                          {shift.covers.length === 1 ? "Ohne diese Schicht fehlt: " : "Ohne diese Schicht fehlen: "}
+                          {joinNames(shift.covers)}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              )}
+
+              {plan.unplaceable.length > 0 ? (
+                <p className="hint">Kommt in keiner Schicht unter: {joinNames(plan.unplaceable)}</p>
+              ) : null}
+            </>
+          )}
         </section>
       ) : null}
 
@@ -429,8 +527,13 @@ export default function PollPage({ id }: { id: string }) {
             ) : (
               <ul>
                 {view.participants.map((person) => (
-                  <li key={person.id}>
-                    <span className="people-name">
+                  <li key={person.id} className={focusPerson === person.name ? "is-focused" : ""}>
+                    <button
+                      type="button"
+                      className="people-name"
+                      aria-pressed={focusPerson === person.name}
+                      onClick={() => setFocusPerson(focusPerson === person.name ? null : person.name)}
+                    >
                       {person.name}
                       {person.locked ? (
                         <span className="lock" title="mit Kennwort geschützt">
@@ -456,7 +559,7 @@ export default function PollPage({ id }: { id: string }) {
                           geschützt
                         </span>
                       ) : null}
-                    </span>
+                    </button>
                     <span className="muted">{since(person.updatedAt)}</span>
                     {adminToken ? (
                       <button

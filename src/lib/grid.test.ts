@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Participant, Poll, Step } from "../../shared/types.ts";
-import { bestRanges, cellsToSpans, slotsOf, spanCells, tally } from "./grid.ts";
+import { bestRanges, cellsToSpans, planShifts, slotsOf, spanCells, tally } from "./grid.ts";
 
 const poll = (step: Step, days = ["2026-11-12"], fromTime = "09:00", toTime = "13:00"): Poll => ({
   id: "x",
@@ -141,5 +141,100 @@ describe("bestRanges", () => {
 
   it("liefert nichts, wenn niemand geantwortet hat", () => {
     expect(bestRanges(poll(60), [])).toEqual([]);
+  });
+});
+
+describe("planShifts", () => {
+  const p = poll(60, ["2026-11-12", "2026-11-13"], "09:00", "13:00");
+
+  it("deckt zwei getrennte Gruppen mit zwei Schichten ab", () => {
+    const plan = planShifts(
+      p,
+      [
+        person("Anna", [{ from: "2026-11-12T09:00", to: "2026-11-12T10:00", choice: "yes" }]),
+        person("Bo", [{ from: "2026-11-12T09:00", to: "2026-11-12T10:00", choice: "yes" }]),
+        person("Cem", [{ from: "2026-11-13T11:00", to: "2026-11-13T12:00", choice: "yes" }]),
+        person("Dilan", [{ from: "2026-11-13T11:00", to: "2026-11-13T12:00", choice: "yes" }]),
+      ],
+      2,
+    );
+    expect(plan.shifts).toHaveLength(2);
+    expect(plan.shifts.flatMap((s) => s.people).sort()).toEqual(["Anna", "Bo", "Cem", "Dilan"]);
+    expect(plan.unplaceable).toEqual([]);
+  });
+
+  it("bedient zuerst den, der am wenigsten Zeit hat", () => {
+    // Cem kann nur einmal. Das vollste Feld waere Do 09:00 mit drei Leuten —
+    // wer danach ginge, liesse Cem uebrig.
+    const plan = planShifts(
+      p,
+      [
+        person("Anna", [{ from: "2026-11-12T09:00", to: "2026-11-12T13:00", choice: "yes" }]),
+        person("Bo", [{ from: "2026-11-12T09:00", to: "2026-11-12T13:00", choice: "yes" }]),
+        person("Cem", [{ from: "2026-11-12T12:00", to: "2026-11-12T13:00", choice: "yes" }]),
+      ],
+      2,
+    );
+    expect(plan.shifts).toHaveLength(1);
+    expect(plan.shifts[0]).toMatchObject({ from: "12:00", to: "13:00", people: ["Anna", "Bo", "Cem"] });
+  });
+
+  it("zieht eine Schicht ueber das ganze Fenster, in dem dieselben koennen", () => {
+    const plan = planShifts(
+      p,
+      [
+        person("Anna", [{ from: "2026-11-12T09:00", to: "2026-11-12T12:00", choice: "yes" }]),
+        person("Bo", [{ from: "2026-11-12T09:00", to: "2026-11-12T12:00", choice: "yes" }]),
+      ],
+      2,
+    );
+    expect(plan.shifts[0]).toMatchObject({ from: "09:00", to: "12:00" });
+  });
+
+  it("meldet, wen die Mindestzahl ausschliesst", () => {
+    const plan = planShifts(
+      p,
+      [
+        person("Anna", [{ from: "2026-11-12T09:00", to: "2026-11-12T10:00", choice: "yes" }]),
+        person("Bo", [{ from: "2026-11-12T09:00", to: "2026-11-12T10:00", choice: "yes" }]),
+        person("Cem", [{ from: "2026-11-13T09:00", to: "2026-11-13T10:00", choice: "yes" }]),
+      ],
+      2,
+    );
+    expect(plan.shifts).toHaveLength(1);
+    expect(plan.unplaceable).toEqual(["Cem"]);
+  });
+
+  it("zaehlt Vielleicht nicht als Zusage", () => {
+    const plan = planShifts(
+      p,
+      [
+        person("Anna", [{ from: "2026-11-12T09:00", to: "2026-11-12T10:00", choice: "yes" }]),
+        person("Bo", [{ from: "2026-11-12T09:00", to: "2026-11-12T10:00", choice: "maybe" }]),
+      ],
+      2,
+    );
+    expect(plan.shifts).toEqual([]);
+    expect(plan.unplaceable).toEqual(["Anna"]);
+  });
+
+  it("nennt je Schicht, wer dadurch neu versorgt ist", () => {
+    const plan = planShifts(
+      p,
+      [
+        person("Anna", [{ from: "2026-11-12T09:00", to: "2026-11-12T13:00", choice: "yes" }]),
+        person("Bo", [{ from: "2026-11-12T09:00", to: "2026-11-12T10:00", choice: "yes" }]),
+        person("Cem", [{ from: "2026-11-12T12:00", to: "2026-11-12T13:00", choice: "yes" }]),
+      ],
+      2,
+    );
+    expect(plan.shifts).toHaveLength(2);
+    expect(plan.shifts.flatMap((s) => s.covers).sort()).toEqual(["Anna", "Bo", "Cem"]);
+    // Anna wird nur einmal gezaehlt, obwohl sie in beiden Schichten steht.
+    expect(plan.shifts.flatMap((s) => s.covers)).toHaveLength(3);
+  });
+
+  it("liefert nichts, wenn niemand geantwortet hat", () => {
+    expect(planShifts(p, [], 2)).toEqual({ shifts: [], unplaceable: [] });
   });
 });

@@ -40,6 +40,33 @@ Auf iOS gibt es `navigator.vibrate` nicht. Deshalb quittiert das lange Drücken
 zusätzlich mit einem Ring, der aus dem Startfeld läuft — auf der Hälfte aller
 Geräte ist das die einzige Rückmeldung.
 
+## Auswertung
+
+Unter dem Raster stehen zwei Sichten auf dieselben Antworten, umschaltbar:
+
+**Ein Termin** sucht die Fenster, in denen die meisten können, und nennt die
+Fehlenden beim Namen. Benachbarte Felder mit identischer Besetzung verschmelzen,
+damit „alle außer Anna, 14–16 Uhr" als ein Vorschlag erscheint und nicht als
+vier.
+
+**Mehrere Schichten** löst die andere Frage: nicht *wann können die meisten*,
+sondern *wie kommt jeder irgendwo unter*. Dazu lässt sich eine Mindestzahl an
+Personen je Schicht einstellen; wer in keiner Schicht dieser Größe vorkommt,
+wird namentlich ausgewiesen statt stillschweigend übergangen.
+
+Exakt ist das eine Mengenüberdeckung und damit NP-schwer. `planShifts` in
+[`src/lib/grid.ts`](src/lib/grid.ts) läuft deshalb als Heuristik, und zwar
+bewusst nicht über das jeweils vollste Feld: das sammelt die Flexiblen zuerst
+ein und lässt am Ende genau die übrig, um die es geht. Stattdessen wird immer
+zuerst bedient, wer die wenigsten Möglichkeiten hat — und unter dessen
+Möglichkeiten die vollste gewählt. Eine Schicht reicht dann so weit, wie
+dieselben Leute können.
+
+„Vielleicht" zählt hier nicht mit. Für eine Schicht braucht es Zusagen.
+
+Ein Tipper auf einen Namen in der Liste blendet dessen Zeiten ins Raster —
+nützlich, wenn jemand fehlt und man sehen will, woran es liegt.
+
 ## Warum Zeiträume und keine Rasterfelder
 
 Der Takt (15 / 30 / 60 / 120 Minuten) ist reine **Anzeige-Auflösung**.
@@ -69,7 +96,7 @@ server/
   limit.ts             Bremse gegen Kennwortraten
   index.ts             Routing, statische Dateien, SPA-Fallback, Header
 src/
-  lib/grid.ts          Zeiträume <-> Rasterfelder, Auszählung, Bestzeiten
+  lib/grid.ts          Zeiträume <-> Rasterfelder, Auszählung, Bestzeiten, Schichtplan
   lib/grid.test.ts     Tests dazu
   lib/api.ts           fetch-Hüllen, im Mockup auf demoStore umgebogen
   lib/demoStore.ts     localStorage-Ersatz für die Demo
@@ -80,6 +107,7 @@ src/
   components/HelpFigures.tsx  animierte Anleitung (SVG + CSS)
   pages/               Anlegen, Termin
 public/robots.txt      sperrt /e/ für Suchmaschinen
+tests/browser.mjs      Browsertests gegen den gebauten Stand
 ```
 
 Ein einziger Node-Prozess serviert in Produktion das gebaute Frontend aus `dist/`
@@ -163,12 +191,21 @@ füllen.
 Die CI läuft `pnpm test` und `pnpm build` bei jedem Push
 ([`ci.yml`](.github/workflows/ci.yml)).
 
-Zusätzlich gibt es eine Browser-Testreihe (Playwright, echte Touch-Events über
-CDP), mit der die Gesten, der Kennwortschutz, die Kopfzeilen und die
-Scroll-Logik gegen den Produktionsbau geprüft wurden. Sie liegt **nicht** im
-Repo, weil Playwright sonst die mit Abstand größte Dev-Abhängigkeit hier wäre
-— das ist eine Entscheidung für die Hausbasis, nicht für ein Repo allein. Notiert
-in [OFFENE-PUNKTE.md](OFFENE-PUNKTE.md).
+[`tests/browser.mjs`](tests/browser.mjs) prüft den gebauten Stand im echten
+Browser: die Gesten mit echten Touch-Events über CDP, die Auswertung, den
+Kennwortschutz, die Kopfzeilen und die Scroll-Logik.
+
+```bash
+pnpm build
+PORT=8099 DATA_DIR=./data node server/index.ts &
+PLAYWRIGHT_FROM=../etymology node tests/browser.mjs
+```
+
+Playwright ist hier **keine** Abhängigkeit — das wäre die mit Abstand größte,
+und nach der Hausbasis-Regel keine Entscheidung für ein Repo allein. Die Datei
+sucht es deshalb erst als eigenes Paket und dann unter dem Pfad in
+`PLAYWRIGHT_FROM`. Deshalb läuft sie auch nicht in der CI; notiert in
+[OFFENE-PUNKTE.md](OFFENE-PUNKTE.md).
 
 ## Demo
 
