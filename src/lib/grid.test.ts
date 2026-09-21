@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Participant, Poll, Step } from "../../shared/types.ts";
-import { bestRanges, cellsToSpans, planShifts, slotsOf, spanCells, tally } from "./grid.ts";
+import type { DrawnShift } from "./grid.ts";
+import { bestRanges, cellsToSpans, planShifts, slotsOf, spanCells, staffShifts, tally } from "./grid.ts";
 
 const poll = (step: Step, days = ["2026-11-12"], fromTime = "09:00", toTime = "13:00"): Poll => ({
   id: "x",
@@ -276,5 +277,97 @@ describe("planShifts", () => {
 
   it("liefert nichts, wenn niemand geantwortet hat", () => {
     expect(planShifts(p, [], 2)).toEqual({ shifts: [], enough: 0, unplaceable: [] });
+  });
+});
+
+describe("staffShifts", () => {
+  const p = poll(60, ["2026-11-12", "2026-11-13"], "09:00", "13:00");
+  const d0 = "2026-11-12";
+  const d1 = "2026-11-13";
+  const yes = (day: string, from: string, to: string) => ({ from: `${day}T${from}`, to: `${day}T${to}`, choice: "yes" as const });
+  const shift = (day: string, from: string, to: string, min = 2): DrawnShift => ({ day, from, to, min });
+
+  it("teilt nur ein, wer die Schicht ganz abdecken kann", () => {
+    const [s] = staffShifts(
+      p,
+      [
+        person("Anna", [yes(d0, "09:00", "12:00")]),
+        person("Bo", [yes(d0, "09:00", "10:00")]),
+        person("Cem", [yes(d0, "09:00", "12:00")]),
+      ],
+      [shift(d0, "09:00", "12:00")],
+    );
+    expect(s.crew).not.toContain("Bo");
+    expect(s.crew).toHaveLength(2);
+  });
+
+  it("nimmt zuerst, wer insgesamt am wenigsten Zeit angeboten hat", () => {
+    // Alle drei koennen, aber Cem hat nur dieses eine Fenster genannt.
+    const [s] = staffShifts(
+      p,
+      [
+        person("Anna", [yes(d0, "09:00", "13:00"), yes(d1, "09:00", "13:00")]),
+        person("Bo", [yes(d0, "09:00", "13:00"), yes(d1, "09:00", "13:00")]),
+        person("Cem", [yes(d0, "09:00", "10:00")]),
+      ],
+      [shift(d0, "09:00", "10:00")],
+    );
+    expect(s.crew).toContain("Cem");
+    expect(s.standby).toHaveLength(1);
+  });
+
+  it("verteilt ueber mehrere Schichten, statt dieselben zweimal zu nehmen", () => {
+    const shifts = staffShifts(
+      p,
+      [
+        person("Anna", [yes(d0, "09:00", "13:00")]),
+        person("Bo", [yes(d0, "09:00", "13:00")]),
+        person("Cem", [yes(d0, "09:00", "13:00")]),
+        person("Dilan", [yes(d0, "09:00", "13:00")]),
+      ],
+      [shift(d0, "09:00", "11:00"), shift(d0, "11:00", "13:00")],
+    );
+    const alle = shifts.flatMap((s) => s.crew);
+    expect(alle).toHaveLength(4);
+    expect(new Set(alle).size).toBe(4);
+  });
+
+  it("besetzt die knappe Schicht vor der bequemen", () => {
+    // Nur Anna und Bo koennen frueh; spaeter koennen alle. Wer chronologisch
+    // besetzt, verbraucht Anna und Bo zuerst und laesst die Fruehschicht leer.
+    const shifts = staffShifts(
+      p,
+      [
+        person("Anna", [yes(d0, "09:00", "13:00")]),
+        person("Bo", [yes(d0, "09:00", "13:00")]),
+        person("Cem", [yes(d0, "11:00", "13:00")]),
+        person("Dilan", [yes(d0, "11:00", "13:00")]),
+      ],
+      [shift(d0, "09:00", "11:00"), shift(d0, "11:00", "13:00")],
+    );
+    expect(shifts[0].missing).toBe(0);
+    expect(shifts[1].missing).toBe(0);
+    expect(shifts[0].crew.sort()).toEqual(["Anna", "Bo"]);
+  });
+
+  it("meldet, wenn die Mindestzahl nicht erreicht wird", () => {
+    const [s] = staffShifts(p, [person("Anna", [yes(d0, "09:00", "10:00")])], [shift(d0, "09:00", "10:00", 3)]);
+    expect(s.crew).toEqual(["Anna"]);
+    expect(s.missing).toBe(2);
+  });
+
+  it("achtet die Mindestzahl jeder Schicht einzeln", () => {
+    const people = [
+      person("Anna", [yes(d0, "09:00", "13:00")]),
+      person("Bo", [yes(d0, "09:00", "13:00")]),
+      person("Cem", [yes(d0, "09:00", "13:00")]),
+    ];
+    const shifts = staffShifts(p, people, [shift(d0, "09:00", "11:00", 3), shift(d0, "11:00", "13:00", 1)]);
+    expect(shifts[0].crew).toHaveLength(3);
+    expect(shifts[1].crew).toHaveLength(1);
+  });
+
+  it("liefert nichts ohne gezeichnete Schichten", () => {
+    expect(staffShifts(p, [person("Anna", [yes(d0, "09:00", "10:00")])], [])).toEqual([]);
   });
 });

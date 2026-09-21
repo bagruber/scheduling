@@ -8,6 +8,9 @@
   --ink: #1d1b17;
   --muted: #6d675c;
   --accent: #1a6b5f;
+  /* Farbe der Auszaehlung im Raster — im Zeichenmodus neutral, damit die
+     gesetzten Schichten sich davon abheben. */
+  --heat: #1a6b5f;
   --accent-weak: #d9ece7;
   --on-accent: #ffffff;
   --warn: #9c3f22;
@@ -23,6 +26,7 @@
     --ink: #f1eee7;
     --muted: #a49d90;
     --accent: #46b39d;
+    --heat: #46b39d;
     --accent-weak: #24413c;
     --on-accent: #10201d;
     --warn: #e08a68;
@@ -393,6 +397,10 @@ button {
 
 /* Der Rahmen umschliesst das Raster, nicht die Seitenbreite — daran haengt
    auch, dass der Weiter-Hinweis rechts an der Rasterkante sitzt. */
+.grid-frame.is-planning {
+  --heat: var(--muted);
+}
+
 .grid-frame {
   position: relative;
   display: flex;
@@ -563,7 +571,7 @@ button {
   height: var(--row-h);
   border-top: 1px solid var(--line-soft);
   border-left: 1px solid var(--line-soft);
-  background: color-mix(in oklab, var(--accent) calc(var(--fill) * 0.85%), var(--surface));
+  background: color-mix(in oklab, var(--heat) calc(var(--fill) * 0.85%), var(--surface));
   display: grid;
   place-items: center;
   font-size: 0.75rem;
@@ -981,6 +989,29 @@ button {
   padding: 0.5rem 0.75rem;
   display: flex;
   flex-direction: column;
+}
+
+.best li.is-short {
+  border-left-color: var(--warn);
+}
+
+.best .short-note {
+  color: var(--warn);
+}
+
+.shift-min {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.shift-min select {
+  width: auto;
+  min-height: 1.875rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.8125rem;
 }
 
 .best li:not(:first-child) {

@@ -2,7 +2,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Choice, Participant, PollView, Span, Step } from "../../shared/types.ts";
 import { STEPS } from "../../shared/types.ts";
 import { ApiError, deleteEntry, patchPoll, readPoll, saveEntry } from "../lib/api.ts";
-import { bestRanges, cellKey, cellsToSpans, planShifts, slotsOf, spanCells, tally, toMinutes } from "../lib/grid.ts";
+import type { DrawnShift } from "../lib/grid.ts";
+import {
+  bestRanges,
+  cellKey,
+  cellsToSpans,
+  dayOf,
+  planShifts,
+  slotsOf,
+  spanCells,
+  staffShifts,
+  tally,
+  timeOf,
+  toMinutes,
+} from "../lib/grid.ts";
 import { dayLong, joinNames, since } from "../lib/format.ts";
 import Grid from "../components/Grid.tsx";
 import { DayFigure, DragFigure, TapFigure } from "../components/HelpFigures.tsx";
@@ -11,6 +24,16 @@ import { DEMO, reset as resetDemo } from "../lib/demoStore.ts";
 const STEP_LABEL: Record<Step, string> = { 15: "15 Min.", 30: "30 Min.", 60: "1 Std.", 120: "2 Std." };
 
 const hours = (value: number) => value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+
+/** Stunden je Person, absteigend — die Zahl, an der man die Last ablesen kann. */
+const hoursPerPerson = (shifts: { from: string; to: string; crew: string[] }[]) => {
+  const total = new Map<string, number>();
+  for (const shift of shifts) {
+    const span = (toMinutes(shift.to) - toMinutes(shift.from)) / 60;
+    for (const name of shift.crew) total.set(name, (total.get(name) ?? 0) + span);
+  }
+  return [...total].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+};
 
 const keysOf = (cells: Map<string, Choice>, choice: Choice) =>
   [...cells].filter(([, value]) => value === choice).map(([key]) => key);
@@ -33,7 +56,9 @@ export default function PollPage({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
   const [calling, setCalling] = useState(false);
   const [focusPerson, setFocusPerson] = useState<string | null>(null);
-  const [planMode, setPlanMode] = useState<"single" | "shifts">("single");
+  const [planMode, setPlanMode] = useState<"single" | "shifts" | "draw">("single");
+  const [drawnCells, setDrawnCells] = useState<Map<string, Choice>>(new Map());
+  const [mins, setMins] = useState<Map<string, number>>(new Map());
   const [minPeople, setMinPeople] = useState(2);
   const [extra, setExtra] = useState(0);
 
@@ -94,14 +119,25 @@ export default function PollPage({ id }: { id: string }) {
 
   // Wie viel jeder im angezeigten Plan traegt — die Zahl, an der man merkt,
   // ob sich die Last verteilt.
-  const load = useMemo(() => {
-    const total = new Map<string, number>();
-    for (const shift of shown) {
-      const span = (toMinutes(shift.to) - toMinutes(shift.from)) / 60;
-      for (const name of shift.crew) total.set(name, (total.get(name) ?? 0) + span);
-    }
-    return [...total].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
-  }, [shown]);
+  const load = useMemo(() => hoursPerPerson(shown), [shown]);
+
+  // Von Hand gezeichnete Schichten: zusammenhaengend Gemaltes wird je Tag zu
+  // einer Schicht. Die Mindestzahl haengt am Beginn der Schicht, damit sie ein
+  // Neuzeichnen nebenan uebersteht.
+  const drawnShifts: DrawnShift[] = useMemo(() => {
+    if (!poll) return [];
+    return cellsToSpans([...drawnCells.keys()], poll, "yes").map((span) => {
+      const day = dayOf(span.from);
+      const from = timeOf(span.from);
+      return { day, from, to: timeOf(span.to), min: mins.get(`${day}T${from}`) ?? shiftSize };
+    });
+  }, [poll, drawnCells, mins, shiftSize]);
+
+  const staffed = useMemo(
+    () => (poll ? staffShifts(poll, displayed, drawnShifts) : []),
+    [poll, displayed, drawnShifts],
+  );
+  const drawnLoad = useMemo(() => hoursPerPerson(staffed), [staffed]);
 
   // Ein angetippter Name blendet dessen Zeiten ins Raster — sonst muss man sie
   // sich aus der Heatmap zusammenreimen.
@@ -139,6 +175,9 @@ export default function PollPage({ id }: { id: string }) {
   const existing = view.participants.find((person) => person.name.toLowerCase() === trimmedName.toLowerCase());
   const needsPassword = existing?.locked === true;
   const shareUrl = `${window.location.origin}/e/${id}`;
+
+  const mode = adminToken ? planMode : "single";
+  const planning = !editing && mode === "draw";
 
   const refresh = () => readPoll(id).then(setView);
 
@@ -193,9 +232,23 @@ export default function PollPage({ id }: { id: string }) {
     apply(next, new Map(mine));
   }
 
+  /** Im Zeichenmodus malt man Schichten statt eigener Zeiten. */
+  function commitDrawn(keys: string[], erase: boolean) {
+    const next = new Map(drawnCells);
+    for (const key of keys) {
+      if (erase) next.delete(key);
+      else next.set(key, "yes");
+    }
+    setDrawnCells(next);
+  }
+
   /** Kopfzeile eines Tages: ganzen Tag setzen — oder leeren, wenn er schon voll ist. */
   function toggleDay(day: string) {
     const keys = times.map((time) => cellKey(day, time));
+    if (planning) {
+      commitDrawn(keys, keys.every((key) => drawnCells.has(key)));
+      return;
+    }
     commit(keys, keys.every((key) => mine.get(key) === brush));
   }
 
@@ -341,14 +394,16 @@ export default function PollPage({ id }: { id: string }) {
         </>
       )}
 
-      {editing || showCounts || focusPerson ? (
+      {editing || planning || showCounts || focusPerson ? (
         <div className="grid-bar">
           <p className="hint">
             {editing
               ? "Tippen wählt ein Feld, Halten und Ziehen einen Block."
-              : focusPerson
-                ? `Zeiten von ${focusPerson}`
-                : "Ein Feld antippen zeigt, wer kann."}
+              : planning
+                ? "Schichten ins Raster malen — die Besetzung wird gewählt."
+                : focusPerson
+                  ? `Zeiten von ${focusPerson}`
+                  : "Ein Feld antippen zeigt, wer kann."}
           </p>
           {focusPerson && !editing ? (
             <button type="button" className="ghost tiny" onClick={() => setFocusPerson(null)}>
@@ -371,21 +426,24 @@ export default function PollPage({ id }: { id: string }) {
       <Grid
         poll={poll}
         times={times}
-        mine={editing ? mine : focusCells}
+        mine={editing ? mine : planning ? drawnCells : focusCells}
         counts={counts}
         total={displayed.length}
-        showCounts={showCounts && !focusPerson}
+        showCounts={planning || (showCounts && !focusPerson)}
         editing={editing}
-        brush={brush}
-        onCommit={commit}
+        planning={planning}
+        brush={planning ? "yes" : brush}
+        onCommit={planning ? commitDrawn : commit}
         onInspect={activateCell}
         onDayToggle={toggleDay}
       />
 
-      <label className="check compact">
-        <input type="checkbox" checked={showCounts} onChange={(event) => setShowCounts(event.target.checked)} />
-        <span>Antworten anderer zeigen</span>
-      </label>
+      {planning ? null : (
+        <label className="check compact">
+          <input type="checkbox" checked={showCounts} onChange={(event) => setShowCounts(event.target.checked)} />
+          <span>Antworten anderer zeigen</span>
+        </label>
+      )}
 
       {undo && editing ? (
         <button
@@ -456,27 +514,26 @@ export default function PollPage({ id }: { id: string }) {
 
       {!editing && displayed.length > 0 ? (
         <section className="best">
-          <div className="best-head">
-            <h2>Auswertung</h2>
-            <div className="segmented small">
-              <button
-                type="button"
-                className={planMode === "single" ? "is-on" : ""}
-                onClick={() => setPlanMode("single")}
-              >
-                Ein Termin
-              </button>
-              <button
-                type="button"
-                className={planMode === "shifts" ? "is-on" : ""}
-                onClick={() => setPlanMode("shifts")}
-              >
-                Mehrere Schichten
-              </button>
+          {adminToken ? (
+            <div className="best-head">
+              <h2>Auswertung</h2>
+              <div className="segmented small">
+                <button type="button" className={mode === "single" ? "is-on" : ""} onClick={() => setPlanMode("single")}>
+                  Termin
+                </button>
+                <button type="button" className={mode === "shifts" ? "is-on" : ""} onClick={() => setPlanMode("shifts")}>
+                  Schichten
+                </button>
+                <button type="button" className={mode === "draw" ? "is-on" : ""} onClick={() => setPlanMode("draw")}>
+                  Zeichnen
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <h2>Passt am besten</h2>
+          )}
 
-          {planMode === "single" ? (
+          {mode === "single" ? (
             ranges.length === 0 ? (
               <p className="hint">Noch hat niemand Zeiten eingetragen.</p>
             ) : (
@@ -495,7 +552,7 @@ export default function PollPage({ id }: { id: string }) {
                 ))}
               </ol>
             )
-          ) : (
+          ) : mode === "shifts" ? (
             <>
               <div className="row">
                 <span className="field-label">Mindestens</span>
@@ -560,6 +617,81 @@ export default function PollPage({ id }: { id: string }) {
               {plan.unplaceable.length > 0 ? (
                 <p className="hint">Kommt in keiner Schicht unter: {joinNames(plan.unplaceable)}</p>
               ) : null}
+            </>
+          ) : (
+            <>
+              <div className="row">
+                <span className="field-label">Neue Schichten mit</span>
+                <select
+                  value={shiftSize}
+                  aria-label="Mindestzahl für neu gezeichnete Schichten"
+                  onChange={(event) => setMinPeople(Number(event.target.value))}
+                >
+                  {Array.from({ length: maxPeople }, (_, i) => i + 1).map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <span className="row-sep">{shiftSize === 1 ? "Person" : "Personen"}</span>
+              </div>
+
+              {staffed.length === 0 ? (
+                <p className="hint">
+                  Noch nichts markiert. Male die Schichten ins Raster — tippen, halten und ziehen, oder auf den Tag in
+                  der Kopfzeile tippen.
+                </p>
+              ) : (
+                <>
+                  <ol>
+                    {staffed.map((shift) => (
+                      <li key={`${shift.day}${shift.from}`} className={shift.missing > 0 ? "is-short" : ""}>
+                        <strong>
+                          {dayLong(shift.day)}, {shift.from}–{shift.to}
+                        </strong>
+                        <span>{shift.crew.length > 0 ? joinNames(shift.crew) : "niemand kann durchgehend"}</span>
+                        {shift.missing > 0 ? (
+                          <span className="short-note">
+                            {shift.missing} {shift.missing === 1 ? "fehlt" : "fehlen"} bis {shift.min}
+                          </span>
+                        ) : null}
+                        {shift.standby.length > 0 ? (
+                          <span className="muted">könnte einspringen: {joinNames(shift.standby)}</span>
+                        ) : null}
+                        <label className="shift-min">
+                          <span className="muted">mindestens</span>
+                          <select
+                            value={shift.min}
+                            aria-label={`Mindestzahl für ${dayLong(shift.day)} ${shift.from}`}
+                            onChange={(event) =>
+                              setMins(new Map(mins).set(`${shift.day}T${shift.from}`, Number(event.target.value)))
+                            }
+                          >
+                            {Array.from({ length: maxPeople }, (_, i) => i + 1).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="hint">
+                    Stunden je Person: {drawnLoad.map(([name, value]) => `${name} ${hours(value)} h`).join(" · ")}
+                  </p>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      setDrawnCells(new Map());
+                      setMins(new Map());
+                    }}
+                  >
+                    Markierung leeren
+                  </button>
+                </>
+              )}
             </>
           )}
         </section>

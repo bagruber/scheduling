@@ -42,7 +42,9 @@ Geräte ist das die einzige Rückmeldung.
 
 ## Auswertung
 
-Unter dem Raster stehen zwei Sichten auf dieselben Antworten, umschaltbar:
+Unter dem Raster steht, was am besten passt. Wer den Verwaltungslink hat, kann
+dort zwischen drei Sichten auf dieselben Antworten umschalten; alle anderen
+sehen nur die erste.
 
 **Ein Termin** sucht die Fenster, in denen die meisten können, und nennt die
 Fehlenden beim Namen. Benachbarte Felder mit identischer Besetzung verschmelzen,
@@ -89,6 +91,29 @@ einer weiteren Einstellung.
 
 „Vielleicht" zählt hier nicht mit. Für eine Schicht braucht es Zusagen.
 
+**Zeichnen** dreht die Richtung um: Statt die Schichten zu suchen, malt man sie
+selbst ins Raster, und nur die Besetzung wird gewählt. Für Fälle, in denen die
+Zeiten feststehen — Standdienst, Aufbau, Telefondienst — und nur noch offen ist,
+wer wann kommt.
+
+Die Auszählung läuft dabei in Grau weiter, damit man sieht, wo überhaupt Leute
+sind; die gemalten Schichten stehen in der Akzentfarbe deutlich darüber. Jede
+Schicht trägt ihre eigene Mindestzahl, änderbar im laufenden Betrieb: erst mit
+drei planen, für die dünnen Zeiten auf zwei gehen. Wird sie nicht erreicht,
+steht es an der Schicht statt im Verborgenen.
+
+Besetzt wird nach derselben Logik wie oben — wer die wenigsten Dienste hat,
+dann wer insgesamt am wenigsten Zeit angeboten hat. Der zweite Punkt ist der
+wichtige: wer nur zwei Fenster genannt hat, käme sonst nie zum Zug, weil die
+Flexiblen überall passen. Und die Schichten werden nicht chronologisch besetzt,
+sondern beginnend mit der, für die es die wenigsten Leute gibt; sonst verbraucht
+eine früh liegende, gut besetzbare Schicht Leute, die eine spätere dringender
+braucht. Eingeteilt wird nur, wer die Schicht **ganz** abdecken kann.
+
+Die gemalten Schichten leben in der Seite, nicht in der Datenbank — ein Reload
+verwirft sie. Sie zu speichern wäre eine Schemaänderung; siehe
+[OFFENE-PUNKTE.md](OFFENE-PUNKTE.md).
+
 Ein Tipper auf einen Namen in der Liste blendet dessen Zeiten ins Raster —
 nützlich, wenn jemand fehlt und man sehen will, woran es liegt.
 
@@ -121,7 +146,8 @@ server/
   limit.ts             Bremse gegen Kennwortraten
   index.ts             Routing, statische Dateien, SPA-Fallback, Header
 src/
-  lib/grid.ts          Zeiträume <-> Rasterfelder, Auszählung, Bestzeiten, Schichtplan
+  lib/grid.ts          Zeiträume <-> Rasterfelder, Auszählung, Bestzeiten,
+                       Schichtplan, Besetzung gezeichneter Schichten
   lib/grid.test.ts     Tests dazu
   lib/api.ts           fetch-Hüllen, im Mockup auf demoStore umgebogen
   lib/demoStore.ts     localStorage-Ersatz für die Demo

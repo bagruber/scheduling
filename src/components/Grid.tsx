@@ -14,6 +14,8 @@ type Props = {
   total: number;
   showCounts: boolean;
   editing: boolean;
+  /** Schichten ins Raster zeichnen statt eigener Zeiten. */
+  planning: boolean;
   brush: Choice;
   onCommit: (keys: string[], erase: boolean) => void;
   onInspect: (key: string) => void;
@@ -33,11 +35,13 @@ export default function Grid({
   total,
   showCounts,
   editing,
+  planning,
   brush,
   onCommit,
   onInspect,
   onDayToggle,
 }: Props) {
+  const paintable = editing || planning;
   const [focus, setFocus] = useState<[number, number]>([0, 0]);
   const [more, setMore] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -60,7 +64,7 @@ export default function Grid({
   const { ref, preview } = usePaint({
     days: poll.days,
     times,
-    enabled: editing,
+    enabled: paintable,
     // Nur wenn das Feld schon den aktiven Pinsel traegt, wird radiert.
     // Sonst schreibt "Vielleicht" ein Ja-Feld um, statt es zu loeschen.
     isSet: (key) => mine.get(key) === brush,
@@ -79,7 +83,7 @@ export default function Grid({
 
     if (event.key === " " || event.key === "Enter") {
       event.preventDefault();
-      if (editing) onCommit([key], mine.get(key) === brush);
+      if (paintable) onCommit([key], mine.get(key) === brush);
       else onInspect(key);
       return;
     }
@@ -109,12 +113,12 @@ export default function Grid({
   );
 
   return (
-    <div className="grid-frame" style={style}>
+    <div className={planning ? "grid-frame is-planning" : "grid-frame"} style={style}>
       <div className="grid-scroll" ref={scroller}>
         <div className="grid" role="grid" ref={ref} onKeyDown={onKeyDown}>
           <div className="grid-corner" />
           {poll.days.map((day) =>
-            editing ? (
+            paintable ? (
               <button
                 key={day}
                 type="button"
@@ -167,7 +171,7 @@ export default function Grid({
                       .join(" ")}
                     style={{ "--fill": fill } as CSSProperties}
                     onFocus={() => setFocus([dayIndex, timeIndex])}
-                    onClick={editing ? undefined : () => onInspect(key)}
+                    onClick={paintable ? undefined : () => onInspect(key)}
                   >
                     {!editing && showCounts && total > 1 && yes > 0 ? <span className="cell-count">{yes}</span> : null}
                   </div>

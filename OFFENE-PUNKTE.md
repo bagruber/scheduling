@@ -42,6 +42,14 @@ faellt eine Regression an der Geste erst am Geraet auf.
 Am 21.09.2026 ist die aeltere, nicht eingecheckte Fassung dieser Tests mit dem
 Zwischenspeicher verloren gegangen. Deshalb liegt sie jetzt im Repo.
 
+## Gezeichnete Schichten werden nicht gespeichert
+
+Der Zeichenmodus haelt seinen Plan im Seitenzustand; ein Reload verwirft ihn.
+Speichern hiesse eine neue Tabelle und damit eine Schemaaenderung — `CREATE
+TABLE IF NOT EXISTS` allein reicht dafuer, aber sobald eine bestehende Tabelle
+eine Spalte braeuchte, waere ein ausdrueckliches `ALTER TABLE` faellig. Solange
+eine Abstimmung produktiv laeuft, wurde das bewusst vertagt.
+
 ## Was bewusst fehlt
 
 Nicht vergessen, sondern entschieden:

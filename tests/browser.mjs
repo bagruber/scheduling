@@ -175,8 +175,16 @@ await wait(200);
 check("Toggle blendet die Auszählung ein", (await filled()) > 0);
 
 // ------------------------------------------------------------- Auswertung
+check(
+  "Ohne Verwaltungszugriff gibt es keine Schichtmodi",
+  (await page.getByRole("button", { name: "Schichten", exact: true }).count()) === 0,
+);
+check("Die Bestzeiten sind trotzdem da", (await page.locator(".best ol li").count()) > 0);
+
+await page.goto(`${BASE}/e/${main.id}?a=${main.adminToken}`);
+await page.locator(".grid").waitFor();
 check("Ein Termin ist die Voreinstellung", (await page.locator(".best ol li").count()) > 0);
-await page.getByRole("button", { name: "Mehrere Schichten" }).click();
+await page.getByRole("button", { name: "Schichten", exact: true }).click();
 await wait(300);
 const shifts = await page.locator(".best ol li").count();
 check("Schichtplan wird berechnet", shifts > 0, `${shifts} Schichten`);
@@ -188,9 +196,9 @@ const cover = await createPoll({ title: "Schichten", step: 60, days, fromTime: "
 await putEntry(cover.id, { name: "Anna", spans: [{ from: `${days[0]}T09:00`, to: `${days[0]}T10:00`, choice: "yes" }] });
 await putEntry(cover.id, { name: "Bo", spans: [{ from: `${days[0]}T09:00`, to: `${days[0]}T10:00`, choice: "yes" }] });
 await putEntry(cover.id, { name: "Cem", spans: [{ from: `${days[1]}T09:00`, to: `${days[1]}T10:00`, choice: "yes" }] });
-await page.goto(`${BASE}/e/${cover.id}`);
+await page.goto(`${BASE}/e/${cover.id}?a=${cover.adminToken}`);
 await page.locator(".grid").waitFor();
-await page.getByRole("button", { name: "Mehrere Schichten" }).click();
+await page.getByRole("button", { name: "Schichten", exact: true }).click();
 await wait(300);
 
 await page.getByLabel("Mindestzahl an Personen je Schicht").selectOption("1");
@@ -233,6 +241,31 @@ check(
 );
 
 
+// ------------------------------------------------------- Schichten zeichnen
+await page.getByRole("button", { name: "Zeichnen" }).click();
+await wait(300);
+check("Zeichenmodus faerbt die Auszaehlung neutral", (await page.locator(".grid-frame.is-planning").count()) === 1);
+check("Noch nichts markiert", (await page.locator(".best").innerText()).includes("Noch nichts markiert"));
+
+await page.locator(`[data-key="${days[0]}T09:00"]`).tap();
+await wait(300);
+check("Eine gemalte Schicht wird besetzt", (await page.locator(".best ol li").count()) === 1);
+const drawnText = await page.locator(".best ol li").first().innerText();
+check("Die Besetzung wird genannt", drawnText.includes("Anna") && drawnText.includes("Bo"), drawnText.replace(/\s+/g, " "));
+
+await page.getByLabel(/Mindestzahl für/).last().selectOption("3");
+await wait(300);
+check(
+  "Die Mindestzahl jeder Schicht laesst sich einzeln aendern",
+  (await page.locator(".best li.is-short").count()) === 1 &&
+    (await page.locator(".best").innerText()).includes("fehlt bis 3"),
+  (await page.locator(".best ol li").first().innerText()).replace(/\s+/g, " "),
+);
+
+await page.getByRole("button", { name: "Markierung leeren" }).click();
+await wait(300);
+check("Markierung leeren raeumt auf", (await page.locator(".best").innerText()).includes("Noch nichts markiert"));
+
 // Die Anzahl der Schichten steht nicht vorab fest: gezeigt wird, was noetig
 // ist, damit jeder einmal dran war — der Rest laesst sich nachladen.
 const more = await createPoll({ title: "Nachladen", step: 60, days, fromTime: "09:00", toTime: "12:00" });
@@ -245,9 +278,9 @@ for (const name of ["Anna", "Bo"]) {
     ],
   });
 }
-await page.goto(`${BASE}/e/${more.id}`);
+await page.goto(`${BASE}/e/${more.id}?a=${more.adminToken}`);
 await page.locator(".grid").waitFor();
-await page.getByRole("button", { name: "Mehrere Schichten" }).click();
+await page.getByRole("button", { name: "Schichten", exact: true }).click();
 await wait(300);
 const first = await page.locator(".best ol li").count();
 check("Zuerst nur so viele Schichten wie nötig", first === 1, `${first} Schichten`);
