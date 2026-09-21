@@ -210,6 +210,29 @@ check(
   text.replace(/\s+/g, " ").slice(-70),
 );
 
+check("Einteilung wird zusammengefasst", (await page.locator(".best").innerText()).includes("eingeteilt"));
+
+// Die Hauptansicht mit der Heatmap bleibt neben der Schichtansicht bestehen.
+await page.getByLabel("Antworten anderer zeigen").check();
+await wait(300);
+check(
+  "Heatmap laeuft neben der Schichtansicht weiter",
+  (await filled()) > 0 && (await page.locator(".best ol li").count()) > 0,
+  `${await filled()} gefüllte Felder`,
+);
+
+await page.getByRole("button", { name: /^Cem/ }).click();
+await wait(300);
+const duringFocus = await filled();
+await page.getByRole("button", { name: "Alle zeigen" }).click();
+await wait(300);
+check(
+  "Nach der Personenansicht ist die Heatmap wieder da",
+  duringFocus === 0 && (await filled()) > 0,
+  `waehrend ${duringFocus}, danach ${await filled()}`,
+);
+
+
 await page.goto(`${BASE}/e/${main.id}`);
 await page.locator(".grid").waitFor();
 

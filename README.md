@@ -50,17 +50,27 @@ damit „alle außer Anna, 14–16 Uhr" als ein Vorschlag erscheint und nicht al
 vier.
 
 **Mehrere Schichten** löst die andere Frage: nicht *wann können die meisten*,
-sondern *wie kommt jeder irgendwo unter*. Dazu lässt sich eine Mindestzahl an
-Personen je Schicht einstellen; wer in keiner Schicht dieser Größe vorkommt,
-wird namentlich ausgewiesen statt stillschweigend übergangen.
+sondern *wie kommen möglichst viele verschiedene Leute zum Zug, ohne dass eine
+Schicht unterbesetzt bleibt*. Das Ergebnis ist eine **Einteilung**, keine
+Verfügbarkeitsliste — je Schicht steht, wer dran ist, und wer einspringen
+könnte. Darüber die Bilanz: „6 von 6 Personen eingeteilt, auf 3 Schichten."
+
+Die Mindestzahl je Schicht ist einstellbar. Jede ausgegebene Schicht erreicht
+sie; wer in keiner Schicht dieser Größe vorkommt, wird namentlich ausgewiesen
+statt stillschweigend übergangen.
 
 Exakt ist das eine Mengenüberdeckung und damit NP-schwer. `planShifts` in
 [`src/lib/grid.ts`](src/lib/grid.ts) läuft deshalb als Heuristik, und zwar
-bewusst nicht über das jeweils vollste Feld: das sammelt die Flexiblen zuerst
-ein und lässt am Ende genau die übrig, um die es geht. Stattdessen wird immer
-zuerst bedient, wer die wenigsten Möglichkeiten hat — und unter dessen
-Möglichkeiten die vollste gewählt. Eine Schicht reicht dann so weit, wie
-dieselben Leute können.
+bewusst nicht über das jeweils vollste Fenster: das sammelt die Flexiblen
+zuerst ein und lässt am Ende genau die übrig, um die es geht. Stattdessen ist
+immer dran, wer die wenigsten Möglichkeiten hat.
+
+In eine Schicht kommen alle noch nicht Eingeteilten, die dann können — das
+bringt pro Schicht die meisten neuen Leute hinein. Reicht das nicht bis zur
+Mindestzahl, wird mit schon Eingeteilten aufgefüllt, die mit den wenigsten
+Diensten zuerst. Eine Schicht reicht so weit, wie dieselben Leute können; die
+Schichtlänge ergibt sich also aus den Antworten, nicht aus einer weiteren
+Einstellung.
 
 „Vielleicht" zählt hier nicht mit. Für eine Schicht braucht es Zusagen.
 

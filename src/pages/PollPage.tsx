@@ -72,12 +72,14 @@ export default function PollPage({ id }: { id: string }) {
   const counts = useMemo(() => (poll ? tally(poll, displayed) : new Map()), [poll, displayed]);
   const ranges = useMemo(() => (poll ? bestRanges(poll, displayed) : []), [poll, displayed]);
 
+  const answeredCount = displayed.filter((p) => p.spans.some((s) => s.choice === "yes")).length;
   const maxPeople = Math.max(1, displayed.length);
   const shiftSize = Math.min(minPeople, maxPeople);
   const plan = useMemo(
     () => (poll ? planShifts(poll, displayed, shiftSize) : { shifts: [], unplaceable: [] }),
     [poll, displayed, shiftSize],
   );
+  const placed = new Set(plan.shifts.flatMap((shift) => shift.crew)).size;
 
   // Ein angetippter Name blendet dessen Zeiten ins Raster — sonst muss man sie
   // sich aus der Heatmap zusammenreimen.
@@ -492,22 +494,25 @@ export default function PollPage({ id }: { id: string }) {
               {plan.shifts.length === 0 ? (
                 <p className="hint">Keine Schicht erreicht diese Mindestzahl.</p>
               ) : (
-                <ol>
-                  {plan.shifts.map((shift) => (
-                    <li key={`${shift.day}${shift.from}`}>
-                      <strong>
-                        {dayLong(shift.day)}, {shift.from}–{shift.to}
-                      </strong>
-                      <span>{joinNames(shift.people)}</span>
-                      {shift.covers.length > 0 && shift.covers.length < shift.people.length ? (
-                        <span>
-                          {shift.covers.length === 1 ? "Ohne diese Schicht fehlt: " : "Ohne diese Schicht fehlen: "}
-                          {joinNames(shift.covers)}
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
+                <>
+                  <p className="hint">
+                    {placed} von {answeredCount} {answeredCount === 1 ? "Person" : "Personen"} eingeteilt, auf{" "}
+                    {plan.shifts.length} {plan.shifts.length === 1 ? "Schicht" : "Schichten"}.
+                  </p>
+                  <ol>
+                    {plan.shifts.map((shift) => (
+                      <li key={`${shift.day}${shift.from}`}>
+                        <strong>
+                          {dayLong(shift.day)}, {shift.from}–{shift.to}
+                        </strong>
+                        <span>{joinNames(shift.crew)}</span>
+                        {shift.standby.length > 0 ? (
+                          <span className="muted">könnte einspringen: {joinNames(shift.standby)}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
 
               {plan.unplaceable.length > 0 ? (
