@@ -114,6 +114,7 @@ export function reset() {
   window.location.reload();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- mark wird absichtlich weggelassen
 const strip = ({ mark: _mark, ...rest }: Stored): Participant => rest;
 
 export async function readPoll(): Promise<PollView> {

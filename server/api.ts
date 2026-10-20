@@ -22,6 +22,7 @@ const bad = (message: string, detail?: Record<string, unknown>) => new HttpError
 
 function text(value: unknown, field: string, max: number, min = 1): string {
   if (typeof value !== "string") throw bad(`${field} fehlt`);
+  // eslint-disable-next-line no-control-regex -- Steuerzeichen sollen hier gerade heraus
   const trimmed = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
   if (trimmed.length < min) throw bad(`${field} darf nicht leer sein`);
   if (trimmed.length > max) throw bad(`${field} ist zu lang (max. ${max} Zeichen)`);

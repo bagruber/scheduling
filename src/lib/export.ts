@@ -71,7 +71,7 @@ export function rosterCsv(poll: Poll, shifts: StaffedShift[]): string {
   );
   lines.push(row(["Mindestens", ...columns.map((column) => String(column.shift.min))]));
 
-  return `﻿${lines.join(BREAK)}${BREAK}`;
+  return `\uFEFF${lines.join(BREAK)}${BREAK}`;
 }
 
 /** Dateiname ohne alles, was Betriebssysteme nicht mögen. */
